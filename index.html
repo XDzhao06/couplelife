@@ -177,7 +177,7 @@ let fbDB = null, fbReady = false, lastLocalSave = 0;
 function fbInit() {
   if (!USE_FIREBASE) { console.log('ℹ️ Firebase未启用'); updateSyncUI('disabled'); return; }
   try {
-    firebase.initializeApp(FIREBASE_CONFIG);
+    firebase.initializeApp(firebaseConfig);
     fbDB = firebase.database();
     fbReady = true;
     console.log('✅ Firebase已连接');
