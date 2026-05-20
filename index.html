@@ -5,12 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>我们的小窝 - 情侣生活助手</title>
 <script src="https://cdn.tailwindcss.com"></script>
-<script>
-tailwind.config={theme:{extend:{colors:{'pink-light':'#FFE5EC','pink':'#FFC2D1','pink-dark':'#F0A0B5','blue-light':'#E0F7FF','blue':'#B3E5FC','blue-dark':'#8EC8E8','purple-light':'#E8D5FF','warm-bg':'#FFFAF5','warm-gray':'#F5F0EB','warm-dark':'#2D2A26','text-secondary':'#99918A','danger':'#FF6B6B','success-light':'#D4EDDA'},fontFamily:{'sans':['Inter','"思源黑体"','sans-serif']},borderRadius:{'card':'16px'}}}}
-</script>
+<script>tailwind.config={theme:{extend:{colors:{'pink-light':'#FFE5EC','pink':'#FFC2D1','pink-dark':'#F0A0B5','blue-light':'#E0F7FF','blue':'#B3E5FC','blue-dark':'#8EC8E8','purple-light':'#E8D5FF','warm-bg':'#FFFAF5','warm-gray':'#F5F0EB','warm-dark':'#2D2A26','text-secondary':'#99918A','danger':'#FF6B6B','success-light':'#D4EDDA'},fontFamily:{'sans':['Inter','"思源黑体"','sans-serif']},borderRadius:{'card':'16px'}}}}</script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
-<!-- Firebase Compat SDK - 无模块延迟，同步可用 -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <style>
@@ -40,19 +37,40 @@ tailwind.config={theme:{extend:{colors:{'pink-light':'#FFE5EC','pink':'#FFC2D1',
 </head>
 <body class="bg-warm-bg min-h-screen font-sans text-gray-700 safe-bottom">
 
+<!-- 加载动画 -->
 <div id="loadingScreen" class="fixed inset-0 z-[200] flex items-center justify-center bg-warm-bg">
   <div class="text-center"><div class="text-6xl heart-beat mb-4">💕</div><p class="text-pink-dark text-lg font-medium">正在加载我们的小窝...</p><p id="loadingStatus" class="text-xs text-text-secondary mt-2"></p></div>
 </div>
 
-<div id="mainApp" class="hidden max-w-lg mx-auto pb-24">
+<!-- ★ 身份选择弹窗（首次打开时显示） -->
+<div id="identityModal" class="modal-overlay hidden" style="z-index:250;align-items:center">
+  <div class="bg-white rounded-3xl p-6 max-w-sm w-full mx-4 text-center bounce-in shadow-xl">
+    <div class="text-5xl mb-4">💕</div>
+    <h2 class="text-xl font-medium text-gray-800 mb-2">欢迎来到我们的小窝！</h2>
+    <p class="text-sm text-text-secondary mb-6">先告诉我，你是哪一位？<br><span class="text-xs">（每人选不同的，数据才能正确区分哦）</span></p>
+    <div class="flex gap-3">
+      <button onclick="setIdentity('personA')" class="flex-1 py-4 rounded-2xl bg-blue-light hover:bg-blue border-2 border-transparent hover:border-blue-dark transition-all active:scale-95">
+        <div class="text-3xl mb-1">📘</div>
+        <div class="font-medium text-blue-dark">我是蓝方</div>
+        <div class="text-xs text-text-secondary mt-1">（通常男生</div>
+      </button>
+      <button onclick="setIdentity('personB')" class="flex-1 py-4 rounded-2xl bg-pink-light hover:bg-pink border-2 border-transparent hover:border-pink-dark transition-all active:scale-95">
+        <div class="text-3xl mb-1">📙</div>
+        <div class="font-medium text-pink-dark">我是粉方</div>
+        <div class="text-xs text-text-secondary mt-1">（通常女生</div>
+      </button>
+    </div>
+    <p class="text-xs text-text-secondary mt-4">选择后仍可在设置中切换</p>
+  </div>
+</div>
 
+<!-- 主页面 -->
+<div id="mainApp" class="hidden max-w-lg mx-auto pb-24">
 <header class="sticky top-0 z-50 glass px-5 py-3 flex items-center justify-between border-b border-pink-light/50">
   <div class="flex items-center gap-2"><span class="text-2xl">🏠</span><h1 class="text-xl font-medium bg-gradient-to-r from-pink-dark to-blue-dark bg-clip-text text-transparent">我们的小窝</h1><span id="syncIndicator" class="sync-dot disabled" title="同步状态" onclick="showSyncStatus()"></span></div>
   <div class="flex items-center gap-3"><div id="batteryDisplay" class="flex items-center gap-2 text-sm"></div><button onclick="sharePage()" class="w-8 h-8 rounded-full bg-warm-gray flex items-center justify-center text-text-secondary hover:bg-pink-light transition-colors"><i class="fa-solid fa-share-nodes text-xs"></i></button><button id="darkModeToggle" class="w-8 h-8 rounded-full bg-warm-gray flex items-center justify-center text-text-secondary hover:bg-pink-light transition-colors"><i class="fa-solid fa-moon text-xs"></i></button></div>
 </header>
-
-<section class="px-5 pt-6 pb-2"><div id="welcomeMessage" class="text-lg font-medium text-gray-800"></div><p id="dailyTip" class="text-sm text-text-secondary mt-1"></p></section>
-
+<section class="px-5 pt-6 pb-2"><div id="welcomeMessage" class="text-lg font-medium text-gray-800"></div><p id="dailyTip" class="text-sm text-text-secondary mt-1"></p><p id="idDisplay" class="text-xs text-text-secondary mt-1 cursor-pointer" onclick="showIdentitySwitcher()"></p></section>
 <section class="px-5 pt-4 grid grid-cols-2 gap-3">
   <div onclick="openModal('scheduleModal')" class="bg-white rounded-card p-4 shadow-sm cursor-pointer hover:shadow-md transition-all active:scale-95 border-l-4 border-blue"><div class="text-2xl mb-2">📚</div><h3 class="font-medium text-gray-800">课程表</h3><p class="text-xs text-text-secondary mt-1">导入两人课表·空闲提醒</p></div>
   <div onclick="openModal('lunchModal')" class="bg-white rounded-card p-4 shadow-sm cursor-pointer hover:shadow-md transition-all active:scale-95 border-l-4 border-pink"><div class="text-2xl mb-2">🍱</div><h3 class="font-medium text-gray-800">中午约饭</h3><p class="text-xs text-text-secondary mt-1">抽签决定·指定餐厅</p></div>
@@ -62,47 +80,36 @@ tailwind.config={theme:{extend:{colors:{'pink-light':'#FFE5EC','pink':'#FFC2D1',
   <div onclick="openModal('anniversaryModal')" class="bg-white rounded-card p-4 shadow-sm cursor-pointer hover:shadow-md transition-all active:scale-95 border-l-4 border-pink-dark"><div class="text-2xl mb-2">💝</div><h3 class="font-medium text-gray-800">纪念日·生日</h3><p class="text-xs text-text-secondary mt-1">倒计时·永不错过</p></div>
   <div onclick="openModal('aiModal')" class="col-span-2 bg-gradient-to-r from-pink-light to-blue-light rounded-card p-4 shadow-sm cursor-pointer hover:shadow-md transition-all active:scale-95"><div class="flex items-center gap-3"><span class="text-2xl">🤖</span><div><h3 class="font-medium text-gray-800">AI 小助手</h3><p class="text-xs text-text-secondary mt-1">查空闲·推荐餐厅·贴心聊天</p></div></div></div>
 </section>
-
 <footer class="text-center mt-8 px-5"><p id="footerQuote" class="text-sm text-text-secondary italic"></p><p id="syncFooterHint" class="text-xs text-text-secondary mt-2 opacity-60"></p></footer>
 </div>
+
+<!-- ============== 模态框 ============== -->
 
 <!-- 课表 -->
 <div id="scheduleModal" class="modal-overlay hidden" onclick="closeModalBg(event,'scheduleModal')"><div class="modal-content" onclick="event.stopPropagation()">
 <div class="flex items-center justify-between mb-4"><h2 class="text-xl font-medium">📚 课程表</h2><button onclick="closeModal('scheduleModal')" class="w-8 h-8 rounded-full bg-warm-gray flex items-center justify-center hover:bg-pink-light transition-colors"><i class="fa-solid fa-xmark"></i></button></div>
 <div class="flex gap-2 mb-4"><button id="tabAddSchedule" class="quick-tag tab-active" onclick="switchScheduleTab('add')">添加课程</button><button id="tabViewSchedule" class="quick-tag bg-warm-gray" onclick="switchScheduleTab('view')">查看课表</button></div>
 <div id="panelAddSchedule">
-<div class="flex gap-2 mb-3"><button id="btnMySchedule" class="flex-1 py-2 rounded-xl text-sm font-medium bg-blue-light text-blue-dark" onclick="switchSchedulePerson('mine')">📘 我的课表</button><button id="btnTaSchedule" class="flex-1 py-2 rounded-xl text-sm bg-warm-gray text-gray-500" onclick="switchSchedulePerson('ta')">📙 TA的课表</button></div>
-<div class="flex gap-2 mb-3"><button id="btnManualAdd" class="flex-1 py-2 rounded-xl text-sm font-medium bg-pink-light text-pink-dark" onclick="switchScheduleMode('manual')">✏️ 手动输入</button><button id="btnExcelAdd" class="flex-1 py-2 rounded-xl text-sm bg-warm-gray text-gray-500" onclick="switchScheduleMode('excel')">📂 Excel导入</button></div>
+<div class="flex gap-2 mb-3"><button id="btnMySchedule" class="flex-1 py-2 rounded-xl text-sm font-medium bg-blue-light text-blue-dark" onclick="switchSchedulePerson('me')">📘 我的课表</button><button id="btnTaSchedule" class="flex-1 py-2 rounded-xl text-sm bg-warm-gray text-gray-500" onclick="switchSchedulePerson('ta')">📙 TA的课表</button></div>
+<div class="flex gap-2 mb-3"><button id="btnManualAdd" class="flex-1 py-2 rounded-xl text-sm font-medium bg-pink-light text-pink-dark" onclick="switchScheduleMode('manual')">✏️ 手动</button><button id="btnExcelAdd" class="flex-1 py-2 rounded-xl text-sm bg-warm-gray text-gray-500" onclick="switchScheduleMode('excel')">📂 Excel</button></div>
 <div id="manualScheduleForm" class="space-y-2">
 <input id="schedName" type="text" placeholder="课程名称" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-pink">
 <input id="schedRoom" type="text" placeholder="教室" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-pink">
 <input id="schedTeacher" type="text" placeholder="教师" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-pink">
-<div class="flex gap-2">
-<select id="schedDay" class="flex-1 px-3 py-2 rounded-xl border border-gray-200 text-sm"><option value="1">周一</option><option value="2">周二</option><option value="3">周三</option><option value="4">周四</option><option value="5">周五</option><option value="6">周六</option><option value="0">周日</option></select>
-<select id="schedStart" class="flex-1 px-3 py-2 rounded-xl border border-gray-200 text-sm"><option value="08:00">8:00</option><option value="10:00">10:00</option><option value="14:00">14:00</option><option value="16:00">16:00</option><option value="19:00">19:00</option></select>
-<select id="schedEnd" class="flex-1 px-3 py-2 rounded-xl border border-gray-200 text-sm"><option value="09:40">9:40</option><option value="11:40">11:40</option><option value="15:40">15:40</option><option value="17:40">17:40</option><option value="20:40">20:40</option></select>
-</div>
+<div class="flex gap-2"><select id="schedDay" class="flex-1 px-3 py-2 rounded-xl border border-gray-200 text-sm"><option value="1">周一</option><option value="2">周二</option><option value="3">周三</option><option value="4">周四</option><option value="5">周五</option><option value="6">周六</option><option value="0">周日</option></select><select id="schedStart" class="flex-1 px-3 py-2 rounded-xl border border-gray-200 text-sm"><option value="08:00">8:00</option><option value="10:00">10:00</option><option value="14:00">14:00</option><option value="16:00">16:00</option><option value="19:00">19:00</option></select><select id="schedEnd" class="flex-1 px-3 py-2 rounded-xl border border-gray-200 text-sm"><option value="09:40">9:40</option><option value="11:40">11:40</option><option value="15:40">15:40</option><option value="17:40">17:40</option><option value="20:40">20:40</option></select></div>
 <div class="flex gap-2"><input id="schedWeeks" type="text" placeholder="周次 (如: 1-18)" class="flex-1 px-3 py-2 rounded-xl border border-gray-200 text-sm"><select id="schedWeekType" class="flex-1 px-3 py-2 rounded-xl border border-gray-200 text-sm"><option value="all">全周</option><option value="odd">单周</option><option value="even">双周</option></select></div>
-<button onclick="addScheduleItem()" class="w-full py-2.5 rounded-xl bg-gradient-to-r from-pink to-blue text-white font-medium text-sm active:scale-95">添加课程</button>
-</div>
-<div id="excelScheduleForm" class="hidden">
-<label class="block w-full py-10 rounded-xl border-2 border-dashed border-gray-300 text-center cursor-pointer hover:border-pink transition-colors"><input type="file" id="excelFileInput" accept=".xlsx,.xls" onchange="importExcelSchedule()" class="hidden"><i class="fa-solid fa-cloud-arrow-up text-3xl text-text-secondary mb-2 block"></i><span class="text-sm text-text-secondary">点击选择 .xlsx 文件</span></label>
-<div id="excelPreview" class="mt-3"></div><button id="btnConfirmExcel" onclick="confirmExcelImport()" class="hidden w-full mt-2 py-2.5 rounded-xl bg-gradient-to-r from-pink to-blue text-white font-medium text-sm active:scale-95">确认导入</button>
-</div></div>
+<button onclick="addScheduleItem()" class="w-full py-2.5 rounded-xl bg-gradient-to-r from-pink to-blue text-white font-medium text-sm active:scale-95">添加课程</button></div>
+<div id="excelScheduleForm" class="hidden"><label class="block w-full py-10 rounded-xl border-2 border-dashed border-gray-300 text-center cursor-pointer hover:border-pink transition-colors"><input type="file" id="excelFileInput" accept=".xlsx,.xls" onchange="importExcelSchedule()" class="hidden"><i class="fa-solid fa-cloud-arrow-up text-3xl text-text-secondary mb-2 block"></i><span class="text-sm text-text-secondary">点击选择 .xlsx 文件</span></label><div id="excelPreview" class="mt-3"></div><button id="btnConfirmExcel" onclick="confirmExcelImport()" class="hidden w-full mt-2 py-2.5 rounded-xl bg-gradient-to-r from-pink to-blue text-white font-medium text-sm active:scale-95">确认导入</button></div></div>
 <div id="panelViewSchedule" class="hidden">
 <div class="flex items-center justify-between mb-3"><div class="flex items-center gap-2"><button onclick="changeScheduleWeek(-1)" class="w-7 h-7 rounded-full bg-warm-gray flex items-center justify-center text-sm">◀</button><span id="currentWeekLabel" class="text-sm font-medium">第1周</span><button onclick="changeScheduleWeek(1)" class="w-7 h-7 rounded-full bg-warm-gray flex items-center justify-center text-sm">▶</button></div><div class="flex gap-1 text-xs"><span class="flex items-center gap-1"><span class="w-3 h-3 rounded bg-blue-light inline-block"></span>我</span><span class="flex items-center gap-1"><span class="w-3 h-3 rounded bg-pink-light inline-block"></span>TA</span><span class="flex items-center gap-1"><span class="w-3 h-3 rounded bg-success-light inline-block"></span>空闲</span></div></div>
-<div id="freeTimeSummary" class="mb-3 p-2 rounded-xl bg-success-light/50 text-sm"></div>
-<div id="scheduleGridView" class="schedule-scroll"></div>
-</div></div></div>
+<div id="freeTimeSummary" class="mb-3 p-2 rounded-xl bg-success-light/50 text-sm"></div><div id="scheduleGridView" class="schedule-scroll"></div></div></div></div>
 
 <!-- 约饭 -->
 <div id="lunchModal" class="modal-overlay hidden" onclick="closeModalBg(event,'lunchModal')"><div class="modal-content" onclick="event.stopPropagation()">
 <div class="flex items-center justify-between mb-4"><h2 class="text-xl font-medium">🍱 中午约饭</h2><button onclick="closeModal('lunchModal')" class="w-8 h-8 rounded-full bg-warm-gray flex items-center justify-center hover:bg-pink-light transition-colors"><i class="fa-solid fa-xmark"></i></button></div>
 <div class="flex gap-2 mb-4"><button id="tabLunchRandom" class="quick-tag tab-active" onclick="switchLunchTab('random')">🎰 抽签决定</button><button id="tabLunchPick" class="quick-tag bg-warm-gray" onclick="switchLunchTab('pick')">📍 指定餐厅</button></div>
-<div id="panelLunchRandom">
-<div class="text-center py-6"><div id="wheelText" class="text-6xl mb-4">🍽️</div><p id="wheelRestaurant" class="text-lg font-medium text-gray-800 mb-4">点击下方按钮开始抽签</p><button id="btnStartSpin" onclick="startSpin()" class="px-8 py-3 rounded-xl bg-gradient-to-r from-pink to-blue text-white font-medium active:scale-95">🎰 开始抽签</button><div id="spinResultActions" class="hidden mt-3 flex gap-2 justify-center"><button onclick="startSpin()" class="px-4 py-2 rounded-xl bg-warm-gray text-sm active:scale-95">再抽一次</button><button onclick="confirmLunch()" class="px-4 py-2 rounded-xl bg-gradient-to-r from-pink to-pink-dark text-white text-sm active:scale-95">确认选择 ✅</button></div></div>
-<div class="mt-4 pt-4 border-t border-gray-100"><p class="text-sm font-medium mb-2">管理餐厅</p><div class="flex gap-2 mb-2"><input id="newRestaurant" type="text" placeholder="添加新餐厅..." class="flex-1 px-3 py-2 rounded-xl border border-gray-200 text-sm"><button onclick="addRestaurant()" class="px-4 py-2 rounded-xl bg-purple-light text-purple-600 text-sm font-medium active:scale-95">添加</button></div><div id="restaurantList" class="flex flex-wrap gap-2 max-h-32 overflow-y-auto"></div></div>
-</div>
+<div id="panelLunchRandom"><div class="text-center py-6"><div id="wheelText" class="text-6xl mb-4">🍽️</div><p id="wheelRestaurant" class="text-lg font-medium text-gray-800 mb-4">点击下方按钮开始抽签</p><button id="btnStartSpin" onclick="startSpin()" class="px-8 py-3 rounded-xl bg-gradient-to-r from-pink to-blue text-white font-medium active:scale-95">🎰 开始抽签</button><div id="spinResultActions" class="hidden mt-3 flex gap-2 justify-center"><button onclick="startSpin()" class="px-4 py-2 rounded-xl bg-warm-gray text-sm active:scale-95">再抽一次</button><button onclick="confirmLunch()" class="px-4 py-2 rounded-xl bg-gradient-to-r from-pink to-pink-dark text-white text-sm active:scale-95">确认选择 ✅</button></div></div>
+<div class="mt-4 pt-4 border-t border-gray-100"><p class="text-sm font-medium mb-2">管理餐厅</p><div class="flex gap-2 mb-2"><input id="newRestaurant" type="text" placeholder="添加新餐厅..." class="flex-1 px-3 py-2 rounded-xl border border-gray-200 text-sm"><button onclick="addRestaurant()" class="px-4 py-2 rounded-xl bg-purple-light text-purple-600 text-sm font-medium active:scale-95">添加</button></div><div id="restaurantList" class="flex flex-wrap gap-2 max-h-32 overflow-y-auto"></div></div></div>
 <div id="panelLunchPick" class="hidden"><div id="restaurantPickList" class="space-y-1 max-h-64 overflow-y-auto mb-4"></div><div id="pickResult" class="hidden p-3 rounded-xl bg-success-light/50 text-center text-sm font-medium"></div></div>
 <div class="mt-4 pt-4 border-t border-gray-100"><p class="text-sm font-medium mb-2">📋 最近7天</p><div id="lunchHistory" class="space-y-1 max-h-40 overflow-y-auto"></div></div>
 </div></div>
@@ -110,7 +117,7 @@ tailwind.config={theme:{extend:{colors:{'pink-light':'#FFE5EC','pink':'#FFC2D1',
 <!-- 晚自习 -->
 <div id="studyModal" class="modal-overlay hidden" onclick="closeModalBg(event,'studyModal')"><div class="modal-content" onclick="event.stopPropagation()">
 <div class="flex items-center justify-between mb-4"><h2 class="text-xl font-medium">🌙 晚自习教室</h2><button onclick="closeModal('studyModal')" class="w-8 h-8 rounded-full bg-warm-gray flex items-center justify-center hover:bg-pink-light transition-colors"><i class="fa-solid fa-xmark"></i></button></div>
-<div class="space-y-3"><input id="studyDate" type="date" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm"><input id="studyMyRoom" type="text" placeholder="我的教室 (如: 教三302)" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm"><input id="studyTaRoom" type="text" placeholder="TA的教室 (如: 图书馆三楼)" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm"><button onclick="submitStudyRoom()" class="w-full py-2.5 rounded-xl bg-gradient-to-r from-purple-light to-pink-light text-purple-700 font-medium text-sm active:scale-95">提交教室信息</button></div>
+<div class="space-y-3"><input id="studyDate" type="date" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm"><input id="studyMyRoom" type="text" placeholder="你的教室 (如: 教三302)" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm"><input id="studyTaRoom" type="text" placeholder="TA的教室 (如: 图书馆三楼)" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm"><button onclick="submitStudyRoom()" class="w-full py-2.5 rounded-xl bg-gradient-to-r from-purple-light to-pink-light text-purple-700 font-medium text-sm active:scale-95">提交教室信息</button></div>
 <div id="studyResult" class="mt-4 p-4 rounded-xl bg-pink-light/30 text-center hidden"></div>
 </div></div>
 
@@ -118,9 +125,8 @@ tailwind.config={theme:{extend:{colors:{'pink-light':'#FFE5EC','pink':'#FFC2D1',
 <div id="packageModal" class="modal-overlay hidden" onclick="closeModalBg(event,'packageModal')"><div class="modal-content" onclick="event.stopPropagation()">
 <div class="flex items-center justify-between mb-4"><h2 class="text-xl font-medium">📦 快递代取</h2><button onclick="closeModal('packageModal')" class="w-8 h-8 rounded-full bg-warm-gray flex items-center justify-center hover:bg-pink-light transition-colors"><i class="fa-solid fa-xmark"></i></button></div>
 <div class="flex gap-2 mb-4"><button id="tabPendingPkg" class="quick-tag tab-active" onclick="switchPackageTab('pending')">📥 待取</button><button id="tabPickedPkg" class="quick-tag bg-warm-gray" onclick="switchPackageTab('picked')">✅ 已取</button></div>
-<div class="space-y-2 mb-4 p-3 rounded-xl bg-warm-gray/50"><input id="pkgCode" type="text" placeholder="取件码" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm"><input id="pkgCompany" type="text" placeholder="快递公司" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm"><input id="pkgLocation" type="text" placeholder="快递柜位置" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm"><input id="pkgNote" type="text" placeholder="备注 (选填)" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm"><div class="flex gap-2"><select id="pkgOwner" class="flex-1 px-3 py-2 rounded-xl border border-gray-200 text-sm"><option value="mine">我买的</option><option value="ta">TA买的</option></select><button onclick="addPackage()" class="flex-1 py-2 rounded-xl bg-gradient-to-r from-blue-light to-pink-light text-blue-700 font-medium text-sm active:scale-95">添加快递</button></div></div>
-<div id="packageList" class="space-y-2 max-h-64 overflow-y-auto"></div>
-</div></div>
+<div class="space-y-2 mb-4 p-3 rounded-xl bg-warm-gray/50"><input id="pkgCode" type="text" placeholder="取件码" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm"><input id="pkgCompany" type="text" placeholder="快递公司" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm"><input id="pkgLocation" type="text" placeholder="快递柜位置" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm"><input id="pkgNote" type="text" placeholder="备注 (选填)" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm"><div class="flex gap-2"><select id="pkgOwner" class="flex-1 px-3 py-2 rounded-xl border border-gray-200 text-sm"><option value="me">我买的</option><option value="ta">TA买的</option></select><button onclick="addPackage()" class="flex-1 py-2 rounded-xl bg-gradient-to-r from-blue-light to-pink-light text-blue-700 font-medium text-sm active:scale-95">添加快递</button></div></div>
+<div id="packageList" class="space-y-2 max-h-64 overflow-y-auto"></div></div></div>
 
 <!-- 经期 -->
 <div id="periodModal" class="modal-overlay hidden" onclick="closeModalBg(event,'periodModal')"><div class="modal-content" onclick="event.stopPropagation()">
@@ -129,16 +135,14 @@ tailwind.config={theme:{extend:{colors:{'pink-light':'#FFE5EC','pink':'#FFC2D1',
 <div class="space-y-2 mb-4"><label class="block text-sm font-medium">上次经期开始日期</label><input id="periodLastStart" type="date" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm"><div class="flex gap-2"><div class="flex-1"><label class="block text-sm font-medium">周期天数</label><input id="periodCycle" type="number" value="28" min="20" max="45" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm"></div><div class="flex-1"><label class="block text-sm font-medium">持续天数</label><input id="periodDuration" type="number" value="5" min="2" max="10" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm"></div></div></div>
 <div id="miniCalendar" class="mb-4"></div>
 <div class="mb-4"><p class="text-sm font-medium mb-2">📝 记录实际经期</p><div class="flex gap-2"><input id="periodRecordStart" type="date" class="flex-1 px-3 py-2 rounded-xl border border-gray-200 text-sm"><input id="periodRecordEnd" type="date" class="flex-1 px-3 py-2 rounded-xl border border-gray-200 text-sm"><button onclick="recordPeriod()" class="px-4 py-2 rounded-xl bg-pink-light text-pink-dark text-sm font-medium active:scale-95">记录</button></div></div>
-<div id="periodHistoryList" class="space-y-1 max-h-32 overflow-y-auto"></div>
-</div></div>
+<div id="periodHistoryList" class="space-y-1 max-h-32 overflow-y-auto"></div></div></div>
 
 <!-- 纪念日 -->
 <div id="anniversaryModal" class="modal-overlay hidden" onclick="closeModalBg(event,'anniversaryModal')"><div class="modal-content" onclick="event.stopPropagation()">
 <div class="flex items-center justify-between mb-4"><h2 class="text-xl font-medium">💝 纪念日·生日</h2><button onclick="closeModal('anniversaryModal')" class="w-8 h-8 rounded-full bg-warm-gray flex items-center justify-center hover:bg-pink-light transition-colors"><i class="fa-solid fa-xmark"></i></button></div>
 <div class="flex gap-2 mb-4"><button id="tabAnniversary" class="quick-tag tab-active" onclick="switchAnniversaryTab('anniversary')">💕 纪念日</button><button id="tabBirthday" class="quick-tag bg-warm-gray" onclick="switchAnniversaryTab('birthday')">🎂 生日</button></div>
-<div class="space-y-2 mb-4 p-3 rounded-xl bg-warm-gray/50"><input id="anniDate" type="date" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm"><input id="anniName" type="text" placeholder="事件名称" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm"><input id="anniNote" type="text" placeholder="备注 (选填)" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm"><div class="flex items-center gap-2"><input id="anniRepeat" type="checkbox" checked class="w-4 h-4 accent-pink"><label for="anniRepeat" class="text-sm">每年重复</label></div><button onclick="addAnniversary()" class="w-full py-2 rounded-xl bg-gradient-to-r from-pink to-pink-dark text-white font-medium text-sm active:scale-95">添加记录</button></div>
-<div id="anniversaryList" class="space-y-2 max-h-64 overflow-y-auto"></div>
-</div></div>
+<div class="space-y-2 mb-4 p-3 rounded-xl bg-warm-gray/50"><input id="anniDate" type="date" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm"><input id="anniName" type="text" placeholder="事件名称" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm"><input id="anniNote" type="text" placeholder="备注 (选填)" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm"><div class="flex items-center gap-2"><input id="anniRepeat" type="checkbox" checked class="w-4 h-4 accent-pink"><label class="text-sm">每年重复</label></div><button onclick="addAnniversary()" class="w-full py-2 rounded-xl bg-gradient-to-r from-pink to-pink-dark text-white font-medium text-sm active:scale-95">添加记录</button></div>
+<div id="anniversaryList" class="space-y-2 max-h-64 overflow-y-auto"></div></div></div>
 
 <!-- AI -->
 <div id="aiModal" class="modal-overlay hidden" onclick="closeModalBg(event,'aiModal')"><div class="modal-content" onclick="event.stopPropagation()">
@@ -156,7 +160,7 @@ tailwind.config={theme:{extend:{colors:{'pink-light':'#FFE5EC','pink':'#FFC2D1',
 
 <script>
 // ================================================================
-//  ★★★ 把下面改成你的Firebase配置，然后 USE_FIREBASE = true ★★★
+//  ★★★ Firebase 配置 ★★★
 // ================================================================
 const firebaseConfig = {
   apiKey: "AIzaSyDMICP4aLjwFzx6fCO3Jthl2XWEg5rHSbI",
@@ -167,80 +171,148 @@ const firebaseConfig = {
   messagingSenderId: "567367976815",
   appId: "1:567367976815:web:2e404a3204d3eb03544a9a"
 };
-const USE_FIREBASE = true; // 配好后改 true
+const USE_FIREBASE = true;
 
 // ================================================================
-//  Firebase 同步引擎 (compat SDK, 无模块延迟)
+//  身份系统 —— 核心
+// ================================================================
+// personA = 蓝方（通常男生）, personB = 粉方（通常女生）
+// 每种设备选择一种身份，存 localStorage
+let MY_ID = null; // 'personA' 或 'personB'
+
+function taId() { return MY_ID === 'personA' ? 'personB' : 'personA'; }
+function myName() { return MY_ID === 'personA' ? '📘 蓝方' : '📙 粉方'; }
+function taName() { return MY_ID === 'personA' ? '📙 粉方' : '📘 蓝方'; }
+
+// 从共享数据中取"我的"部分
+function myVal(data, defaultVal) {
+  if (!data) return defaultVal;
+  if (MY_ID === 'personA') return data.personA !== undefined ? data.personA : defaultVal;
+  return data.personB !== undefined ? data.personB : defaultVal;
+}
+// 从共享数据中取"TA的"部分
+function taVal(data, defaultVal) {
+  if (!data) return defaultVal;
+  if (MY_ID === 'personA') return data.personB !== undefined ? data.personB : defaultVal;
+  return data.personA !== undefined ? data.personA : defaultVal;
+}
+// 创建带身份的共享对象
+function pairedData(myValue, taValue) {
+  return MY_ID === 'personA'
+    ? { personA: myValue, personB: taValue }
+    : { personA: taValue, personB: myValue };
+}
+// 从旧格式迁移
+function migratePaired(oldData, defaultA, defaultB) {
+  if (!oldData) return { personA: defaultA, personB: defaultB };
+  if (oldData.personA !== undefined) return oldData; // 已迁移
+  // 旧格式 {mine, ta}
+  return { personA: oldData.mine !== undefined ? oldData.mine : defaultA,
+           personB: oldData.ta !== undefined ? oldData.ta : defaultB };
+}
+
+// 身份选择
+function setIdentity(id) {
+  MY_ID = id;
+  localStorage.setItem('coupleIdentity', id);
+  document.getElementById('identityModal').classList.add('hidden');
+  document.body.style.overflow = '';
+  // 迁移旧数据
+  migrateOldData();
+  // 继续初始化
+  initAfterIdentity();
+}
+
+function showIdentitySwitcher() {
+  if (confirm('当前身份：' + myName() + '\n\n要切换身份吗？\n⚠️ 请确保两人选不同的身份！')) {
+    localStorage.removeItem('coupleIdentity');
+    location.reload();
+  }
+}
+
+// 迁移旧格式数据
+function migrateOldData() {
+  const keys = {
+    schedule: { key: 'coupleSchedule', def: { personA: [], personB: [] }, oldA: 'mine', oldB: 'ta' },
+    battery: { key: 'coupleBattery', def: { personA: 80, personB: 80 }, oldA: 'mine', oldB: 'ta' },
+    batteryManual: { key: 'coupleBatteryManual', def: { personA: false, personB: false }, oldA: 'mine', oldB: 'ta' },
+    studyRoom: { key: 'coupleStudyRoom', def: { date: '', personA: '', personB: '' }, oldA: 'myRoom', oldB: 'taRoom' },
+    packages: { key: 'couplePackages', def: { pending: [], picked: [] } },
+  };
+
+  Object.values(keys).forEach(conf => {
+    const raw = localStorage.getItem(conf.key);
+    if (!raw) { localStorage.setItem(conf.key, JSON.stringify(conf.def)); return; }
+    try {
+      let data = JSON.parse(raw);
+      let changed = false;
+
+      // 迁移 schedule: {mine:[], ta:[]} → {personA:[], personB:[]}
+      if (conf.oldA && data[conf.oldA] !== undefined && data.personA === undefined) {
+        data = { personA: data[conf.oldA] || conf.def.personA, personB: data[conf.oldB] || conf.def.personB };
+        changed = true;
+      }
+      // 迁移 studyRoom: {date, myRoom, taRoom} → {date, personA, personB}
+      if (conf.oldA === 'myRoom' && data.myRoom !== undefined && data.personA === undefined) {
+        data = { date: data.date || '', personA: data.myRoom || '', personB: data.taRoom || '' };
+        changed = true;
+      }
+      // 迁移 packages: {owner:'mine'/'ta'} → {owner:'personA'/'personB'}
+      if (conf.key === 'couplePackages') {
+        ['pending', 'picked'].forEach(list => {
+          if (data[list]) {
+            data[list].forEach(p => {
+              if (p.owner === 'mine') { p.owner = 'personA'; changed = true; }
+              else if (p.owner === 'ta') { p.owner = 'personB'; changed = true; }
+            });
+          }
+        });
+      }
+
+      if (changed) localStorage.setItem(conf.key, JSON.stringify(data));
+    } catch(e) {}
+  });
+}
+
+// ================================================================
+//  Firebase 同步引擎
 // ================================================================
 let fbDB = null, fbReady = false, lastLocalSave = 0, fbLastError = '';
 
 function fbInit() {
   if (!USE_FIREBASE) { console.log('ℹ️ Firebase未启用'); updateSyncUI('disabled'); return; }
-
-  // 先检查SDK是否加载
   if (typeof firebase === 'undefined' || !firebase.database) {
-    fbLastError = 'Firebase SDK未加载，CDN可能被墙或网络问题';
-    console.error('❌ ' + fbLastError);
-    updateSyncUI('offline');
-    return;
+    fbLastError = 'Firebase SDK未加载，CDN可能被墙'; console.error('❌ ' + fbLastError); updateSyncUI('offline'); return;
   }
-
   try {
     const app = firebase.initializeApp(firebaseConfig);
     fbDB = firebase.database(app);
     fbReady = true; fbLastError = '';
     console.log('✅ Firebase已连接');
-
-    // 测试数据库读写权限
-    fbDB.ref('.info/connected').on('value', snap => {
-      console.log(snap.val() ? '🔗 数据库连接成功' : '🔌 数据库断开');
-    });
-
-    // 监听对方的数据变化
+    fbDB.ref('.info/connected').on('value', snap => { console.log(snap.val() ? '🔗 数据库连接成功' : '🔌 数据库断开'); });
     fbDB.ref('coupleData').on('value', snap => {
-      const rd = snap.val();
-      if (!rd) { pushAllToCloud(); return; }
+      const rd = snap.val(); if (!rd) { pushAllToCloud(); return; }
       const rt = rd._lastUpdated || 0;
       if (rt > lastLocalSave) {
-        console.log('🔄 检测到TA的数据更新, rt='+rt+' > local='+lastLocalSave);
-        Object.keys(rd).forEach(k => {
-          if (k !== '_lastUpdated') localStorage.setItem(k, JSON.stringify(rd[k]));
-        });
-        lastLocalSave = rt;
-        refreshAllUI();
-        showToast('TA的数据已同步 🔄', 1500);
+        console.log('🔄 检测到TA更新, rt=' + rt + ' > local=' + lastLocalSave);
+        Object.keys(rd).forEach(k => { if (k !== '_lastUpdated') localStorage.setItem(k, JSON.stringify(rd[k])); });
+        lastLocalSave = rt; refreshAllUI(); showToast('TA的数据已同步 🔄', 1500);
       }
-    }, err => {
-      fbLastError = '数据库读写失败: ' + (err.message || err.code || '未知');
-      console.error('❌ ' + fbLastError);
-      updateSyncUI('offline');
-    });
+    }, err => { fbLastError = '数据库读写失败: ' + (err.message || err.code || '未知'); console.error('❌ ' + fbLastError); updateSyncUI('offline'); });
     updateSyncUI('online');
-  } catch(e) {
-    fbLastError = e.message || e.code || '未知错误';
-    console.error('❌ Firebase初始化失败: ' + fbLastError, e);
-    fbReady = false; updateSyncUI('offline');
-  }
+  } catch(e) { fbLastError = e.message || e.code || '未知错误'; console.error('❌ Firebase初始化: ' + fbLastError, e); fbReady = false; updateSyncUI('offline'); }
 }
 
 function pushAllToCloud() {
   if (!fbReady || !fbDB) return;
-  const now = Date.now();
-  const all = { _lastUpdated: now };
-  const keys = ['coupleSchedule','coupleRestaurants','coupleLunchHistory','coupleLunchPick',
-    'coupleStudyRoom','couplePackages','couplePeriod','couplePeriodHistory',
-    'coupleAnniversaries','coupleBattery','coupleBatteryManual','coupleAiChat','coupleDarkMode'];
-  keys.forEach(k => {
-    const v = localStorage.getItem(k);
-    if (v !== null) { try { all[k] = JSON.parse(v); } catch(e) { all[k] = v; } }
+  const now = Date.now(), all = { _lastUpdated: now };
+  ['coupleSchedule','coupleRestaurants','coupleLunchHistory','coupleLunchPick',
+   'coupleStudyRoom','couplePackages','couplePeriod','couplePeriodHistory',
+   'coupleAnniversaries','coupleBattery','coupleBatteryManual','coupleAiChat','coupleDarkMode'].forEach(k => {
+    const v = localStorage.getItem(k); if (v !== null) { try { all[k] = JSON.parse(v); } catch(e) { all[k] = v; } }
   });
   lastLocalSave = now;
-  fbDB.ref('coupleData').set(all).then(() => {
-    console.log('☁️ 已推送云端, t='+now);
-  }).catch(err => {
-    console.error('❌ 推送失败:', err.message);
-    updateSyncUI('offline');
-  });
+  fbDB.ref('coupleData').set(all).then(() => { console.log('☁️ 已推送, t=' + now); }).catch(err => { console.error('❌ 推送失败:', err.message); updateSyncUI('offline'); });
 }
 
 function pullCloud(cb) {
@@ -248,416 +320,411 @@ function pullCloud(cb) {
   document.getElementById('loadingStatus').textContent = '正在从云端同步...';
   fbDB.ref('coupleData').once('value').then(snap => {
     const d = snap.val();
-    if (d) {
-      Object.keys(d).forEach(k => {
-        if (k !== '_lastUpdated') localStorage.setItem(k, JSON.stringify(d[k]));
-      });
-      lastLocalSave = d._lastUpdated || 0;
-      console.log('📥 云端已下载, t='+lastLocalSave);
-      document.getElementById('loadingStatus').textContent = '同步完成 ✅';
-      if (cb) cb(true);
-    } else {
-      console.log('ℹ️ 云端无数据，上传本地');
-      document.getElementById('loadingStatus').textContent = '首次使用，上传本地...';
-      pushAllToCloud();
-      if (cb) cb(false);
-    }
-  }).catch(err => {
-    console.error('❌ 下载失败:', err.message);
-    document.getElementById('loadingStatus').textContent = '同步失败，使用本地数据';
-    updateSyncUI('offline');
-    if (cb) cb(false);
-  });
+    if (d) { Object.keys(d).forEach(k => { if (k !== '_lastUpdated') localStorage.setItem(k, JSON.stringify(d[k])); }); lastLocalSave = d._lastUpdated || 0; console.log('📥 云端已下载'); document.getElementById('loadingStatus').textContent = '同步完成 ✅'; if (cb) cb(true); }
+    else { console.log('ℹ️ 云端无数据'); pushAllToCloud(); if (cb) cb(false); }
+  }).catch(err => { console.error('❌ 下载失败:', err.message); updateSyncUI('offline'); if (cb) cb(false); });
 }
 
-function saveAndSync(key, val) {
-  try { localStorage.setItem(key, JSON.stringify(val)); } catch(e) { showToast('存储空间不足'); return; }
-  pushAllToCloud();
-}
+function saveAndSync(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch(e) { showToast('存储空间不足'); return; } pushAllToCloud(); }
 
 function updateSyncUI(status) {
-  const dot = document.getElementById('syncIndicator');
-  const hint = document.getElementById('syncFooterHint');
-  if (dot) {
-    dot.className = 'sync-dot ' + status;
-    dot.title = status === 'online' ? '☁️ 云端同步中' : status === 'offline' ? '⚠️ 同步离线' : '⚙️ 未启用同步';
-  }
-  if (hint) {
-    hint.textContent = status === 'online' ? '☁️ 两人数据实时同步中'
-      : status === 'offline' ? '⚠️ 同步断开，检查Firebase配置'
-      : '💡 配置Firebase即可开启两人实时同步';
-  }
+  const dot = document.getElementById('syncIndicator'), hint = document.getElementById('syncFooterHint');
+  if (dot) { dot.className = 'sync-dot ' + status; dot.title = status === 'online' ? '☁️ 云端同步中' : status === 'offline' ? '⚠️ 同步离线' : '⚙️ 未启用'; }
+  if (hint) { hint.textContent = status === 'online' ? '☁️ 两人数据实时同步中' : status === 'offline' ? '⚠️ 同步断开' : '💡 配置Firebase即可开启同步'; }
 }
 
 function showSyncStatus() {
   let msg = '';
-  if (!USE_FIREBASE) msg = '同步未启用。请设 USE_FIREBASE=true';
-  else if (!fbReady) msg = '❌ 同步失败，原因：\n\n' + (fbLastError || '未知错误，请打开F12控制台查看') + '\n\n请检查：\n1. Firebase Console → Realtime Database → 创建数据库(测试模式)\n2. databaseURL 是否正确\n3. 浏览器控制台是否有更多报错';
-  else msg = '☁️ 云端同步正常运行中～\n两人数据实时互通！\n\n提示：你改数据后，TA会实时看到更新';
+  if (!USE_FIREBASE) msg = '同步未启用'; else if (!fbReady) msg = '❌ 同步失败\n\n' + (fbLastError || '未知') + '\n\n请检查：\n1. Firebase Console → Realtime Database 是否创建\n2. 数据库规则是否允许读写'; else msg = '☁️ 云端同步正常\n当前身份: ' + myName() + '\n' + taName() + '修改的数据会自动同步';
   alert(msg);
 }
 
-function refreshAllUI() {
-  updateWelcome(); refreshBatteryDisplay(); checkLowBattery();
-  ['scheduleModal','lunchModal','studyModal','packageModal','periodModal','anniversaryModal','aiModal'].forEach(id => {
-    const m = document.getElementById(id);
-    if (m && !m.classList.contains('hidden')) {
-      const r = { scheduleModal: () => { if (!document.getElementById('panelViewSchedule').classList.contains('hidden')) refreshScheduleView(); },
-        lunchModal: refreshLunchModal, studyModal: refreshStudyModal,
-        packageModal: () => refreshPackageList(document.getElementById('tabPendingPkg').classList.contains('tab-active') ? 'pending' : 'picked'),
-        periodModal: refreshPeriodModal, anniversaryModal: refreshAnniversaryModal, aiModal: refreshAiChat };
-      if (r[id]) r[id]();
-    }
-  });
-}
+function refreshAllUI() { updateWelcome(); refreshBattery(); checkLowBat(); /* 刷新打开的modal */ ['scheduleModal','lunchModal','studyModal','packageModal','periodModal','anniversaryModal','aiModal'].forEach(id => { const m = document.getElementById(id); if (m && !m.classList.contains('hidden')) { const r = { scheduleModal: () => { if (!document.getElementById('panelViewSchedule').classList.contains('hidden')) refreshScheduleView(); }, lunchModal: refreshLunchModal, studyModal: refreshStudyModal, packageModal: () => refreshPackageList(document.getElementById('tabPendingPkg').classList.contains('tab-active') ? 'pending' : 'picked'), periodModal: refreshPeriodModal, anniversaryModal: refreshAnniversaryModal, aiModal: refreshAiChat }; if (r[id]) r[id](); } }); }
 
 // ================================================================
 //  通用工具
 // ================================================================
-const KEYS = {
-  schedule:'coupleSchedule',restaurants:'coupleRestaurants',lunchHistory:'coupleLunchHistory',
-  lunchPick:'coupleLunchPick',studyRoom:'coupleStudyRoom',packages:'couplePackages',
-  period:'couplePeriod',periodHistory:'couplePeriodHistory',anniversaries:'coupleAnniversaries',
-  battery:'coupleBattery',aiChat:'coupleAiChat',darkMode:'coupleDarkMode',
-  schedulePerson:'scheduleCurrentPerson',currentWeek:'scheduleCurrentWeek',
-  anniversaryTab:'anniversaryCurrentTab',batteryManual:'coupleBatteryManual'
-};
+const KEYS = { schedule:'coupleSchedule',restaurants:'coupleRestaurants',lunchHistory:'coupleLunchHistory',lunchPick:'coupleLunchPick',studyRoom:'coupleStudyRoom',packages:'couplePackages',period:'couplePeriod',periodHistory:'couplePeriodHistory',anniversaries:'coupleAnniversaries',battery:'coupleBattery',aiChat:'coupleAiChat',darkMode:'coupleDarkMode',schedulePerson:'scheduleCurrentPerson',currentWeek:'scheduleCurrentWeek',anniversaryTab:'anniversaryCurrentTab',batteryManual:'coupleBatteryManual' };
 const DEFAULT_RESTAURANTS = ['一食堂1楼','一食堂2楼','一食堂3楼','二食堂1楼','二食堂2楼','黄焖鸡米饭','麻辣烫','汉堡王','奶茶店','沙县小吃','兰州拉面','麻辣香锅','石锅拌饭','螺蛳粉','煎饼果子'];
-const DAILY_TIPS = ['今天也要记得给对方一个温暖的拥抱哦 🫂','学习再忙，也别忘了吃早餐～ ☀️','一起努力的日子最美好 💪','记得多喝水，照顾好自己 💧','给对方发一条甜甜的消息吧 💌','一起规划周末去哪里玩吧 🎯'];
-const LOVE_QUOTES = ['「所有的相遇，都是久别重逢」','「你是我这一生等了半世未拆的礼物」','「余生漫漫，爱有归期」','「入目无别人，四下皆是你」','「你是年少的欢喜，倒过来也是」','「世界很大，但我的世界只有你」'];
+const DAILY_TIPS = ['今天也要记得给对方一个温暖的拥抱哦 🫂','学习再忙，也别忘了吃早餐～ ☀️','一起努力的日子最美好 💪','记得多喝水，照顾好自己 💧','给对方发一条甜甜的消息吧 💌'];
+const LOVE_QUOTES = ['「所有的相遇，都是久别重逢」','「你是我这一生等了半世未拆的礼物」','「余生漫漫，爱有归期」','「入目无别人，四下皆是你」'];
 
-let curSchPerson='mine',curSchWeek=1,curSchMode='manual',curBattTarget='mine',pendingExcel={mine:[],ta:[]},isSpinning=false,curAnniTab='anniversary';
+let curSchPerson='me',curSchWeek=1,curSchMode='manual',curBattTarget='me',pendingExcel=[],isSpinning=false,curAnniTab='anniversary';
 
 function loadData(key, def) { try { const r = localStorage.getItem(key); return r ? JSON.parse(r) : def; } catch(e) { return def; } }
 function saveData(key, val) { saveAndSync(key, val); }
-function showToast(msg, dur) { dur = dur || 2000; const t = document.getElementById('toast'); t.textContent = msg; t.classList.remove('hidden'); t.style.opacity = '1'; t.style.transform = 'translate(-50%,0)'; clearTimeout(t._to); t._to = setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity 0.3s'; setTimeout(() => t.classList.add('hidden'), 300); }, dur); }
-function openModal(id) { const m = document.getElementById(id); m.classList.remove('hidden'); m.querySelector('.modal-content').classList.add('slide-up'); document.body.style.overflow = 'hidden'; const r = { scheduleModal: refreshScheduleView, lunchModal: refreshLunchModal, studyModal: refreshStudyModal, packageModal: () => refreshPackageList('pending'), periodModal: refreshPeriodModal, anniversaryModal: refreshAnniversaryModal, aiModal: refreshAiChat }; if (r[id]) r[id](); }
-function closeModal(id) { document.getElementById(id).classList.add('hidden'); document.body.style.overflow = ''; }
-function closeModalBg(e, id) { if (e.target === e.currentTarget) closeModal(id); }
-function getTodayStr() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
-function requestNotif() { if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission(); }
-function sendNotif(title, body) { if ('Notification' in window && Notification.permission === 'granted') new Notification(title, { body, icon: '💕' }); }
-function sharePage() { const url = window.location.href; if (navigator.share) navigator.share({ title: '我们的小窝', text: '来看看我们的情侣生活助手吧～', url }); else navigator.clipboard.writeText(url).then(() => showToast('链接已复制，发给TA吧 💌')); }
+function showToast(msg, dur) { dur=dur||2000; const t=document.getElementById('toast'); t.textContent=msg; t.classList.remove('hidden'); t.style.opacity='1'; t.style.transform='translate(-50%,0)'; clearTimeout(t._to); t._to=setTimeout(()=>{t.style.opacity='0';t.style.transition='opacity 0.3s';setTimeout(()=>t.classList.add('hidden'),300);},dur); }
+function openModal(id) { const m=document.getElementById(id); m.classList.remove('hidden'); m.querySelector('.modal-content').classList.add('slide-up'); document.body.style.overflow='hidden'; const r={scheduleModal:refreshScheduleView,lunchModal:refreshLunchModal,studyModal:refreshStudyModal,packageModal:()=>refreshPackageList('pending'),periodModal:refreshPeriodModal,anniversaryModal:refreshAnniversaryModal,aiModal:refreshAiChat}; if(r[id]) r[id](); }
+function closeModal(id) { document.getElementById(id).classList.add('hidden'); document.body.style.overflow=''; }
+function closeModalBg(e,id) { if(e.target===e.currentTarget) closeModal(id); }
+function getTodayStr() { const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function requestNotif() { if('Notification' in window && Notification.permission==='default') Notification.requestPermission(); }
+function sendNotif(title,body) { if('Notification' in window && Notification.permission==='granted') new Notification(title,{body,icon:'💕'}); }
+function sharePage() { const url=window.location.href; if(navigator.share) navigator.share({title:'我们的小窝',text:'来看看我们的情侣生活助手吧～',url}); else navigator.clipboard.writeText(url).then(()=>showToast('链接已复制 💌')); }
 
 // ================================================================
-//  电量
+//  电量（基于身份）
 // ================================================================
 async function initBattery() {
-  const b = loadData(KEYS.battery, { mine: 80, ta: 80 });
-  const manual = loadData(KEYS.batteryManual, { mine: false, ta: false });
-  if ('getBattery' in navigator && !manual.mine) {
+  const data = migratePaired(loadData(KEYS.battery, null), 80, 80);
+  saveData(KEYS.battery, data);
+  const manual = migratePaired(loadData(KEYS.batteryManual, null), false, false);
+  saveData(KEYS.batteryManual, manual);
+
+  // 尝试自动读取本设备电量
+  if ('getBattery' in navigator && !myVal(manual, false)) {
     try {
       const bm = await navigator.getBattery();
-      b.mine = Math.round(bm.level * 100); saveData(KEYS.battery, b);
+      data[MY_ID] = Math.round(bm.level * 100); saveData(KEYS.battery, data);
       bm.addEventListener('levelchange', () => {
-        if (!loadData(KEYS.batteryManual, { mine: false, ta: false }).mine) {
-          const bb = loadData(KEYS.battery, { mine: 80, ta: 80 });
-          bb.mine = Math.round(bm.level * 100); saveData(KEYS.battery, bb);
+        const m = migratePaired(loadData(KEYS.batteryManual, null), false, false);
+        if (!myVal(m, false)) {
+          const d = loadData(KEYS.battery, { personA: 80, personB: 80 });
+          d[MY_ID] = Math.round(bm.level * 100); saveData(KEYS.battery, d);
           refreshBattery(); checkLowBat();
         }
       });
       setInterval(async () => {
-        if (!loadData(KEYS.batteryManual, { mine: false, ta: false }).mine) {
+        const m = migratePaired(loadData(KEYS.batteryManual, null), false, false);
+        if (!myVal(m, false)) {
           const f = await navigator.getBattery();
-          const bb = loadData(KEYS.battery, { mine: 80, ta: 80 });
-          bb.mine = Math.round(f.level * 100); saveData(KEYS.battery, bb);
+          const d = loadData(KEYS.battery, { personA: 80, personB: 80 });
+          d[MY_ID] = Math.round(f.level * 100); saveData(KEYS.battery, d);
           refreshBattery(); checkLowBat();
         }
       }, 30000);
-    } catch(e) {}
+      console.log('🔋 电量自动读取已启用 (' + MY_ID + ')');
+    } catch(e) { console.warn('⚠️ Battery API不可用，需手动输入'); }
+  } else {
+    console.log('ℹ️ 手动电量模式 (Battery API不支持或已手动覆盖)');
   }
   refreshBattery(); checkLowBat();
 }
 
 function refreshBattery() {
-  const b = loadData(KEYS.battery, { mine: 80, ta: 80 });
-  const manual = loadData(KEYS.batteryManual, { mine: false, ta: false });
-  const c = document.getElementById('batteryDisplay');
-  function ic(p) { return p >= 50 ? '<i class="fa-solid fa-battery-full text-green-500"></i>' : p >= 20 ? '<i class="fa-solid fa-battery-half text-yellow-500"></i>' : '<i class="fa-solid fa-battery-quarter text-danger"></i>'; }
-  function pc(p) { return p >= 50 ? 'text-green-500' : p >= 20 ? 'text-yellow-500' : 'text-danger'; }
-  c.innerHTML = `<div onclick="openBattEdit('mine')" class="flex items-center gap-1 cursor-pointer active:scale-95 px-1.5 py-0.5 rounded-lg hover:bg-warm-gray" title="${manual.mine?'手动':'自动'}">${ic(b.mine)} <span class="text-xs ${pc(b.mine)} font-medium">${b.mine}%</span>${manual.mine?'<span class="text-[10px] text-text-secondary">✏️</span>':''}</div><span class="text-text-secondary text-xs">|</span><div onclick="openBattEdit('ta')" class="flex items-center gap-1 cursor-pointer active:scale-95 px-1.5 py-0.5 rounded-lg hover:bg-warm-gray" title="${manual.ta?'手动':'同步'}">${ic(b.ta)} <span class="text-xs ${pc(b.ta)} font-medium">${b.ta}%</span>${manual.ta?'<span class="text-[10px] text-text-secondary">✏️</span>':''}</div>`;
+  const data = loadData(KEYS.battery, { personA: 80, personB: 80 });
+  const manual = loadData(KEYS.batteryManual, { personA: false, personB: false });
+  const myB = myVal(data, 80), taB = taVal(data, 80);
+  const myM = myVal(manual, false), taM = taVal(manual, false);
+  function ic(p) { return p>=50?'<i class="fa-solid fa-battery-full text-green-500"></i>':p>=20?'<i class="fa-solid fa-battery-half text-yellow-500"></i>':'<i class="fa-solid fa-battery-quarter text-danger"></i>'; }
+  function pc(p) { return p>=50?'text-green-500':p>=20?'text-yellow-500':'text-danger'; }
+  document.getElementById('batteryDisplay').innerHTML =
+    '<div onclick="openBattEdit(\'me\')" class="flex items-center gap-1 cursor-pointer active:scale-95 px-1.5 py-0.5 rounded-lg hover:bg-warm-gray" title="'+(myM?'手动':'自动读取')+'">'+ic(myB)+' <span class="text-xs '+pc(myB)+' font-medium">'+myB+'%</span>'+(myM?'<span class="text-[10px] text-text-secondary">✏️</span>':'')+'</div>'+
+    '<span class="text-text-secondary text-xs">|</span>'+
+    '<div onclick="openBattEdit(\'ta\')" class="flex items-center gap-1 cursor-pointer active:scale-95 px-1.5 py-0.5 rounded-lg hover:bg-warm-gray" title="'+(taM?'手动':'云端同步')+'">'+ic(taB)+' <span class="text-xs '+pc(taB)+' font-medium">'+taB+'%</span>'+(taM?'<span class="text-[10px] text-text-secondary">✏️</span>':'')+'</div>';
 }
 
 function openBattEdit(t) {
-  curBattTarget = t;
-  document.getElementById('batteryEditTitle').textContent = t === 'mine' ? '🔋 更新我的电量' : '🔋 更新TA的电量';
-  document.getElementById('batteryEditInput').value = loadData(KEYS.battery, { mine: 80, ta: 80 })[t];
+  curBattTarget = t; // 'me' 或 'ta'
+  const data = loadData(KEYS.battery, { personA: 80, personB: 80 });
+  const val = t === 'me' ? myVal(data, 80) : taVal(data, 80);
+  const label = t === 'me' ? '我的电量' : 'TA的电量';
+  document.getElementById('batteryEditTitle').textContent = '🔋 更新' + label;
+  document.getElementById('batteryEditInput').value = val;
   openModal('batteryEditModal');
 }
+
 function updateBattery() {
   const v = parseInt(document.getElementById('batteryEditInput').value);
   if (isNaN(v) || v < 0 || v > 100) { showToast('请输入0-100'); return; }
-  const b = loadData(KEYS.battery, { mine: 80, ta: 80 }); b[curBattTarget] = v; saveData(KEYS.battery, b);
-  const m = loadData(KEYS.batteryManual, { mine: false, ta: false }); m[curBattTarget] = true; saveData(KEYS.batteryManual, m);
+  const data = loadData(KEYS.battery, { personA: 80, personB: 80 });
+  const manual = loadData(KEYS.batteryManual, { personA: false, personB: false });
+  if (curBattTarget === 'me') {
+    data[MY_ID] = v; manual[MY_ID] = true;
+  } else {
+    data[taId()] = v; manual[taId()] = true;
+  }
+  saveData(KEYS.battery, data); saveData(KEYS.batteryManual, manual);
   closeModal('batteryEditModal'); refreshBattery(); checkLowBat(); showToast('电量更新成功 🔋');
 }
+
 function revertBatteryAuto() {
-  const m = loadData(KEYS.batteryManual, { mine: false, ta: false }); m[curBattTarget] = false; saveData(KEYS.batteryManual, m);
-  closeModal('batteryEditModal');
-  if (curBattTarget === 'mine' && 'getBattery' in navigator) {
+  const manual = loadData(KEYS.batteryManual, { personA: false, personB: false });
+  if (curBattTarget === 'me') { manual[MY_ID] = false; }
+  else { manual[taId()] = false; }
+  saveData(KEYS.batteryManual, manual); closeModal('batteryEditModal');
+  if (curBattTarget === 'me' && 'getBattery' in navigator) {
     navigator.getBattery().then(bm => {
-      const b = loadData(KEYS.battery, { mine: 80, ta: 80 }); b.mine = Math.round(bm.level * 100); saveData(KEYS.battery, b);
+      const d = loadData(KEYS.battery, { personA: 80, personB: 80 });
+      d[MY_ID] = Math.round(bm.level * 100); saveData(KEYS.battery, d);
       refreshBattery(); checkLowBat();
     });
   }
   showToast('已恢复自动读取 🔋');
 }
+
 function checkLowBat() {
-  const b = loadData(KEYS.battery, { mine: 80, ta: 80 }), a = document.getElementById('lowBatteryAlert');
-  if (b.mine < 20 && b.ta < 20) { a.innerHTML = '🔋 你们的电量都快没啦，记得充电哦～'; a.classList.remove('hidden'); }
-  else if (b.mine < 20) { a.innerHTML = '🔋 宝贝，你的电量快没啦，记得充电哦～'; a.classList.remove('hidden'); }
-  else if (b.ta < 20) { a.innerHTML = '🔋 TA的电量快没啦，提醒TA充电吧～'; a.classList.remove('hidden'); }
+  const data = loadData(KEYS.battery, { personA: 80, personB: 80 });
+  const myB = myVal(data, 80), taB = taVal(data, 80);
+  const a = document.getElementById('lowBatteryAlert');
+  if (myB < 20 && taB < 20) { a.innerHTML = '🔋 你们的电量都快没啦，记得充电哦～'; a.classList.remove('hidden'); }
+  else if (myB < 20) { a.innerHTML = '🔋 你的电量快没啦，记得充电哦～'; a.classList.remove('hidden'); }
+  else if (taB < 20) { a.innerHTML = '🔋 ' + taName() + '的电量快没啦，提醒TA充电吧～'; a.classList.remove('hidden'); }
   else a.classList.add('hidden');
 }
 
 // ================================================================
-//  1. 课表
+//  1. 课表（基于身份）
 // ================================================================
-function switchScheduleTab(t) { document.getElementById('tabAddSchedule').className = t === 'add' ? 'quick-tag tab-active' : 'quick-tag bg-warm-gray'; document.getElementById('tabViewSchedule').className = t === 'view' ? 'quick-tag tab-active' : 'quick-tag bg-warm-gray'; document.getElementById('panelAddSchedule').classList.toggle('hidden', t !== 'add'); document.getElementById('panelViewSchedule').classList.toggle('hidden', t !== 'view'); if (t === 'view') refreshScheduleView(); }
-function switchSchedulePerson(p) { curSchPerson = p; saveData(KEYS.schedulePerson, p); document.getElementById('btnMySchedule').className = p === 'mine' ? 'flex-1 py-2 rounded-xl text-sm font-medium bg-blue-light text-blue-dark' : 'flex-1 py-2 rounded-xl text-sm bg-warm-gray text-gray-500'; document.getElementById('btnTaSchedule').className = p === 'ta' ? 'flex-1 py-2 rounded-xl text-sm font-medium bg-pink-light text-pink-dark' : 'flex-1 py-2 rounded-xl text-sm bg-warm-gray text-gray-500'; }
-function switchScheduleMode(m) { curSchMode = m; document.getElementById('btnManualAdd').className = m === 'manual' ? 'flex-1 py-2 rounded-xl text-sm font-medium bg-pink-light text-pink-dark' : 'flex-1 py-2 rounded-xl text-sm bg-warm-gray text-gray-500'; document.getElementById('btnExcelAdd').className = m === 'excel' ? 'flex-1 py-2 rounded-xl text-sm font-medium bg-pink-light text-pink-dark' : 'flex-1 py-2 rounded-xl text-sm bg-warm-gray text-gray-500'; document.getElementById('manualScheduleForm').classList.toggle('hidden', m !== 'manual'); document.getElementById('excelScheduleForm').classList.toggle('hidden', m !== 'excel'); }
+function switchScheduleTab(t) { document.getElementById('tabAddSchedule').className = t==='add'?'quick-tag tab-active':'quick-tag bg-warm-gray'; document.getElementById('tabViewSchedule').className = t==='view'?'quick-tag tab-active':'quick-tag bg-warm-gray'; document.getElementById('panelAddSchedule').classList.toggle('hidden',t!=='add'); document.getElementById('panelViewSchedule').classList.toggle('hidden',t!=='view'); if(t==='view') refreshScheduleView(); }
+
+function switchSchedulePerson(p) {
+  curSchPerson = p;
+  saveData(KEYS.schedulePerson, p);
+  document.getElementById('btnMySchedule').className = p==='me'
+    ? 'flex-1 py-2 rounded-xl text-sm font-medium bg-blue-light text-blue-dark'
+    : 'flex-1 py-2 rounded-xl text-sm bg-warm-gray text-gray-500';
+  document.getElementById('btnTaSchedule').className = p==='ta'
+    ? 'flex-1 py-2 rounded-xl text-sm font-medium bg-pink-light text-pink-dark'
+    : 'flex-1 py-2 rounded-xl text-sm bg-warm-gray text-gray-500';
+}
+
+function switchScheduleMode(m) {
+  curSchMode = m;
+  document.getElementById('btnManualAdd').className = m==='manual'?'flex-1 py-2 rounded-xl text-sm font-medium bg-pink-light text-pink-dark':'flex-1 py-2 rounded-xl text-sm bg-warm-gray text-gray-500';
+  document.getElementById('btnExcelAdd').className = m==='excel'?'flex-1 py-2 rounded-xl text-sm font-medium bg-pink-light text-pink-dark':'flex-1 py-2 rounded-xl text-sm bg-warm-gray text-gray-500';
+  document.getElementById('manualScheduleForm').classList.toggle('hidden',m!=='manual');
+  document.getElementById('excelScheduleForm').classList.toggle('hidden',m!=='excel');
+}
 
 function addScheduleItem() {
-  const name = document.getElementById('schedName').value.trim(); if (!name) { showToast('请输入课程名称'); return; }
-  const s = loadData(KEYS.schedule, { mine: [], ta: [] });
-  s[curSchPerson].push({ id: Date.now(), name, room: document.getElementById('schedRoom').value.trim(), teacher: document.getElementById('schedTeacher').value.trim(), day: parseInt(document.getElementById('schedDay').value), startTime: document.getElementById('schedStart').value, endTime: document.getElementById('schedEnd').value, weeks: document.getElementById('schedWeeks').value.trim(), weekType: document.getElementById('schedWeekType').value, person: curSchPerson });
+  const name = document.getElementById('schedName').value.trim(); if(!name){showToast('请输入课程名称');return;}
+  const s = migratePaired(loadData(KEYS.schedule, null), [], []);
+  const targetId = curSchPerson === 'me' ? MY_ID : taId();
+  s[targetId].push({
+    id: Date.now(), name,
+    room: document.getElementById('schedRoom').value.trim(),
+    teacher: document.getElementById('schedTeacher').value.trim(),
+    day: parseInt(document.getElementById('schedDay').value),
+    startTime: document.getElementById('schedStart').value,
+    endTime: document.getElementById('schedEnd').value,
+    weeks: document.getElementById('schedWeeks').value.trim(),
+    weekType: document.getElementById('schedWeekType').value
+  });
   saveData(KEYS.schedule, s);
-  ['schedName', 'schedRoom', 'schedTeacher', 'schedWeeks'].forEach(id => document.getElementById(id).value = '');
+  ['schedName','schedRoom','schedTeacher','schedWeeks'].forEach(id=>document.getElementById(id).value='');
   showToast('课程添加成功 ✅');
 }
 
 function importExcelSchedule() {
-  const f = document.getElementById('excelFileInput').files[0]; if (!f) return;
+  const f = document.getElementById('excelFileInput').files[0]; if(!f)return;
   const r = new FileReader();
   r.onload = function(e) {
     try {
-      const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
-      const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1 });
-      const parsed = parseExcelRows(rows); pendingExcel = { mine: parsed, ta: [] };
-      document.getElementById('excelPreview').innerHTML = `<p class="text-sm text-green-600">✅ 已解析 ${parsed.length} 门课程</p>`;
+      const wb = XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1});
+      pendingExcel = parseExcelRows(rows);
+      document.getElementById('excelPreview').innerHTML = '<p class="text-sm text-green-600">✅ 已解析 '+pendingExcel.length+' 门课程</p>';
       document.getElementById('btnConfirmExcel').classList.remove('hidden');
-    } catch(err) { showToast('Excel解析失败，请检查格式'); }
+    } catch(err) { showToast('Excel解析失败'); }
   };
   r.readAsArrayBuffer(f);
 }
 
 function parseExcelRows(rows) {
-  const courses = [], dm = { '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '日': 0, '天': 0 };
-  const ts = { '1': '08:00', '2': '10:00', '3': '14:00', '4': '16:00', '5': '19:00' };
-  const es = { '1': '09:40', '2': '11:40', '3': '15:40', '4': '17:40', '5': '20:40' };
-  for (let i = 1; i < rows.length; i++) {
-    const row = rows[i]; if (!row || row.length < 3) continue;
-    const name = String(row[0] || '').trim(); if (!name || name === '课程名称') continue;
-    const ds = String(row[3] || row[1] || '1').replace(/[^一二三四五六日天\d]/g, '');
-    const day = dm[ds] !== undefined ? dm[ds] : 1;
-    const ss = String(row[4] || row[2] || '1').replace(/[^\d:]/g, '');
-    const es2 = String(row[5] || row[3] || '2').replace(/[^\d:]/g, '');
-    courses.push({ id: Date.now() + i, name, room: String(row[2] || row[5] || '').trim(), teacher: String(row[1] || row[4] || '').trim(), day, startTime: ts[ss] || '08:00', endTime: es[es2] || '09:40', weeks: String(row[6] || row[7] || '1-18').trim(), weekType: 'all', person: curSchPerson });
-  }
+  const courses=[], dm={'一':1,'二':2,'三':3,'四':4,'五':5,'六':6,'日':0,'天':0};
+  const ts={'1':'08:00','2':'10:00','3':'14:00','4':'16:00','5':'19:00'},es={'1':'09:40','2':'11:40','3':'15:40','4':'17:40','5':'20:40'};
+  for(let i=1;i<rows.length;i++){const row=rows[i];if(!row||row.length<3)continue;const name=String(row[0]||'').trim();if(!name||name==='课程名称')continue;const ds=String(row[3]||row[1]||'1').replace(/[^一二三四五六日天\d]/g,'');const day=dm[ds]!==undefined?dm[ds]:1;const ss=String(row[4]||row[2]||'1').replace(/[^\d:]/g,'');const es2=String(row[5]||row[3]||'2').replace(/[^\d:]/g,'');courses.push({id:Date.now()+i,name,room:String(row[2]||row[5]||'').trim(),teacher:String(row[1]||row[4]||'').trim(),day,startTime:ts[ss]||'08:00',endTime:es[es2]||'09:40',weeks:String(row[6]||row[7]||'1-18').trim(),weekType:'all'});}
   return courses;
 }
 
 function confirmExcelImport() {
-  if (!pendingExcel[curSchPerson] || pendingExcel[curSchPerson].length === 0) { showToast('没有可导入的数据'); return; }
-  const s = loadData(KEYS.schedule, { mine: [], ta: [] });
-  s[curSchPerson] = s[curSchPerson].concat(pendingExcel[curSchPerson]); saveData(KEYS.schedule, s);
-  pendingExcel = { mine: [], ta: [] }; document.getElementById('excelPreview').innerHTML = '';
-  document.getElementById('btnConfirmExcel').classList.add('hidden'); document.getElementById('excelFileInput').value = '';
+  if(!pendingExcel||pendingExcel.length===0){showToast('没有可导入的数据');return;}
+  const s = migratePaired(loadData(KEYS.schedule,null),[],[]);
+  const targetId = curSchPerson === 'me' ? MY_ID : taId();
+  s[targetId] = s[targetId].concat(pendingExcel);
+  saveData(KEYS.schedule, s);
+  pendingExcel=[]; document.getElementById('excelPreview').innerHTML='';
+  document.getElementById('btnConfirmExcel').classList.add('hidden'); document.getElementById('excelFileInput').value='';
   showToast('课表导入成功 ✅');
 }
 
-function changeScheduleWeek(d) { curSchWeek = Math.max(1, Math.min(18, curSchWeek + d)); saveData(KEYS.currentWeek, curSchWeek); refreshScheduleView(); }
+function changeScheduleWeek(d) { curSchWeek=Math.max(1,Math.min(18,curSchWeek+d)); saveData(KEYS.currentWeek,curSchWeek); refreshScheduleView(); }
 
-function parseWeekStr(str) {
-  if (!str) return Array.from({ length: 18 }, (_, i) => i + 1);
-  const r = new Set();
-  String(str).split(/[,，]/).forEach(p => { p = p.trim(); if (p.includes('-') || p.includes('—')) { const [a, b] = p.split(/[-—]/).map(Number); if (a && b) for (let i = a; i <= b; i++) r.add(i); } else { const n = parseInt(p); if (n) r.add(n); } });
-  return r.size > 0 ? [...r] : Array.from({ length: 18 }, (_, i) => i + 1);
-}
+function parseWeekStr(str) { if(!str) return Array.from({length:18},(_,i)=>i+1); const r=new Set(); String(str).split(/[,，]/).forEach(p=>{p=p.trim();if(p.includes('-')||p.includes('—')){const[a,b]=p.split(/[-—]/).map(Number);if(a&&b)for(let i=a;i<=b;i++)r.add(i);}else{const n=parseInt(p);if(n)r.add(n);}}); return r.size>0?[...r]:Array.from({length:18},(_,i)=>i+1); }
 
 function refreshScheduleView() {
-  const sch = loadData(KEYS.schedule, { mine: [], ta: [] }); curSchWeek = loadData(KEYS.currentWeek, 1);
-  document.getElementById('currentWeekLabel').textContent = '第' + curSchWeek + '周';
-  const slots = [{ l: '1-2节', s: '08:00', e: '09:40' }, { l: '3-4节', s: '10:00', e: '11:40' }, { l: '5-6节', s: '14:00', e: '15:40' }, { l: '7-8节', s: '16:00', e: '17:40' }, { l: '9-10节', s: '19:00', e: '20:40' }];
-  const days = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'], di = [0, 1, 2, 3, 4, 5, 6];
-  function hc(p, d, s, e) { return sch[p].some(c => { if (c.day !== d || c.startTime >= e || c.endTime <= s) return false; if (c.weeks && !parseWeekStr(c.weeks).includes(curSchWeek)) return false; if (c.weekType === 'odd' && curSchWeek % 2 === 0) return false; if (c.weekType === 'even' && curSchWeek % 2 === 1) return false; return true; }); }
-  let fc = 0; const fs = [];
-  di.forEach(d => { slots.forEach(sl => { if (!hc('mine', d, sl.s, sl.e) && !hc('ta', d, sl.s, sl.e)) { fc++; fs.push(days[d] + ' ' + sl.l + '(' + sl.s + '-' + sl.e + ')'); } }); });
-  document.getElementById('freeTimeSummary').innerHTML = '🎉 本周共有 <span class="font-medium text-green-600">' + fc + '</span> 个共同空闲时段' + (fs.length > 0 ? '<br><span class="text-xs text-text-secondary">' + fs.slice(0, 6).join('、') + (fs.length > 6 ? '等' : '') + '</span>' : '');
-  let h = '<table class="w-full text-xs border-collapse min-w-[500px]"><thead><tr><th class="p-2 bg-warm-gray rounded-l-xl sticky left-0 z-10">时段</th>';
-  di.forEach(d => { h += '<th class="p-2 bg-warm-gray font-medium">' + days[d] + '</th>'; });
-  h += '</tr></thead><tbody>';
-  slots.forEach(sl => {
-    h += '<tr><td class="p-2 text-text-secondary bg-warm-gray/30 rounded-l-xl sticky left-0 z-10 whitespace-nowrap">' + sl.l + '<br><span class="text-[10px]">' + sl.s + '-' + sl.e + '</span></td>';
-    di.forEach(d => {
-      const mb = hc('mine', d, sl.s, sl.e), tb = hc('ta', d, sl.s, sl.e);
-      let bg = '', txt = '';
-      if (!mb && !tb) { bg = 'bg-success-light'; txt = '<span class="text-green-700">🆓 空闲</span>'; }
-      else {
-        const p = [];
-        if (mb) { const c = sch.mine.find(c => c.day === d && c.startTime < sl.e && c.endTime > sl.s && (c.weeks ? parseWeekStr(c.weeks).includes(curSchWeek) : true) && (c.weekType === 'all' || (c.weekType === 'odd' && curSchWeek % 2 === 1) || (c.weekType === 'even' && curSchWeek % 2 === 0))); p.push(c ? '<span class="text-blue-600">📘' + c.name + '</span>' : '<span class="text-blue-600">📘有课</span>'); }
-        if (tb) { const c = sch.ta.find(c => c.day === d && c.startTime < sl.e && c.endTime > sl.s && (c.weeks ? parseWeekStr(c.weeks).includes(curSchWeek) : true) && (c.weekType === 'all' || (c.weekType === 'odd' && curSchWeek % 2 === 1) || (c.weekType === 'even' && curSchWeek % 2 === 0))); p.push(c ? '<span class="text-pink-dark">📙' + c.name + '</span>' : '<span class="text-pink-dark">📙有课</span>'); }
-        txt = p.join('<br>');
-        if (mb && !tb) bg = 'bg-blue-light/30'; else if (!mb && tb) bg = 'bg-pink-light/30'; else bg = 'bg-purple-light/30';
-      }
-      h += '<td class="p-1.5 text-center ' + bg + ' rounded">' + txt + '</td>';
+  const sch = migratePaired(loadData(KEYS.schedule,null),[],[]);
+  curSchWeek = loadData(KEYS.currentWeek,1);
+  document.getElementById('currentWeekLabel').textContent='第'+curSchWeek+'周';
+  const slots=[{l:'1-2节',s:'08:00',e:'09:40'},{l:'3-4节',s:'10:00',e:'11:40'},{l:'5-6节',s:'14:00',e:'15:40'},{l:'7-8节',s:'16:00',e:'17:40'},{l:'9-10节',s:'19:00',e:'20:40'}];
+  const days=['周日','周一','周二','周三','周四','周五','周六'],di=[0,1,2,3,4,5,6];
+  const myCourses = myVal(sch,[]), taCourses = taVal(sch,[]);
+
+  function hc(courses,d,s,e){return courses.some(c=>{if(c.day!==d||c.startTime>=e||c.endTime<=s)return false;if(c.weeks&&!parseWeekStr(c.weeks).includes(curSchWeek))return false;if(c.weekType==='odd'&&curSchWeek%2===0)return false;if(c.weekType==='even'&&curSchWeek%2===1)return false;return true;});}
+
+  let fc=0;const fs=[];
+  di.forEach(d=>{slots.forEach(sl=>{if(!hc(myCourses,d,sl.s,sl.e)&&!hc(taCourses,d,sl.s,sl.e)){fc++;fs.push(days[d]+' '+sl.l+'('+sl.s+'-'+sl.e+')');}})});
+  document.getElementById('freeTimeSummary').innerHTML='🎉 本周共有 <span class="font-medium text-green-600">'+fc+'</span> 个共同空闲时段'+(fs.length>0?'<br><span class="text-xs text-text-secondary">'+fs.slice(0,6).join('、')+(fs.length>6?'等':'')+'</span>':'');
+
+  let h='<table class="w-full text-xs border-collapse min-w-[500px]"><thead><tr><th class="p-2 bg-warm-gray rounded-l-xl sticky left-0 z-10">时段</th>';
+  di.forEach(d=>{h+='<th class="p-2 bg-warm-gray font-medium">'+days[d]+'</th>';});
+  h+='</tr></thead><tbody>';
+  slots.forEach(sl=>{
+    h+='<tr><td class="p-2 text-text-secondary bg-warm-gray/30 rounded-l-xl sticky left-0 z-10 whitespace-nowrap">'+sl.l+'<br><span class="text-[10px]">'+sl.s+'-'+sl.e+'</span></td>';
+    di.forEach(d=>{
+      const mb=hc(myCourses,d,sl.s,sl.e),tb=hc(taCourses,d,sl.s,sl.e);
+      let bg='',txt='';
+      if(!mb&&!tb){bg='bg-success-light';txt='<span class="text-green-700">🆓 空闲</span>';}
+      else{const p=[];if(mb){const c=myCourses.find(c=>c.day===d&&c.startTime<sl.e&&c.endTime>sl.s&&(c.weeks?parseWeekStr(c.weeks).includes(curSchWeek):true)&&(c.weekType==='all'||(c.weekType==='odd'&&curSchWeek%2===1)||(c.weekType==='even'&&curSchWeek%2===0)));p.push(c?'<span class="text-blue-600">📘'+c.name+'</span>':'<span class="text-blue-600">📘有课</span>');}if(tb){const c=taCourses.find(c=>c.day===d&&c.startTime<sl.e&&c.endTime>sl.s&&(c.weeks?parseWeekStr(c.weeks).includes(curSchWeek):true)&&(c.weekType==='all'||(c.weekType==='odd'&&curSchWeek%2===1)||(c.weekType==='even'&&curSchWeek%2===0)));p.push(c?'<span class="text-pink-dark">📙'+c.name+'</span>':'<span class="text-pink-dark">📙有课</span>');}txt=p.join('<br>');if(mb&&!tb)bg='bg-blue-light/30';else if(!mb&&tb)bg='bg-pink-light/30';else bg='bg-purple-light/30';}
+      h+='<td class="p-1.5 text-center '+bg+' rounded">'+txt+'</td>';
     });
-    h += '</tr>';
+    h+='</tr>';
   });
-  h += '</tbody></table>';
-  document.getElementById('scheduleGridView').innerHTML = h;
+  h+='</tbody></table>';
+  document.getElementById('scheduleGridView').innerHTML=h;
 }
 
 // ================================================================
-//  2. 约饭
+//  2. 约饭（共享数据，无需身份区分）
 // ================================================================
-function switchLunchTab(t) { document.getElementById('tabLunchRandom').className = t === 'random' ? 'quick-tag tab-active' : 'quick-tag bg-warm-gray'; document.getElementById('tabLunchPick').className = t === 'pick' ? 'quick-tag tab-active' : 'quick-tag bg-warm-gray'; document.getElementById('panelLunchRandom').classList.toggle('hidden', t !== 'random'); document.getElementById('panelLunchPick').classList.toggle('hidden', t !== 'pick'); if (t === 'pick') refreshPickList(); }
-function getRestaurants() { return loadData(KEYS.restaurants, [...DEFAULT_RESTAURANTS]); }
-function addRestaurant() { const n = document.getElementById('newRestaurant').value.trim(); if (!n) { showToast('请输入餐厅名称'); return; } const l = getRestaurants(); if (l.includes(n)) { showToast('该餐厅已在列表中'); return; } l.push(n); saveData(KEYS.restaurants, l); document.getElementById('newRestaurant').value = ''; refreshRestList(); showToast('餐厅添加成功 ✅'); }
-function removeRestaurant(n) { let l = getRestaurants(); l = l.filter(r => r !== n); saveData(KEYS.restaurants, l); refreshRestList(); refreshPickList(); showToast('已删除'); }
-function refreshRestList() { document.getElementById('restaurantList').innerHTML = getRestaurants().map(r => '<span class="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-warm-gray text-xs">' + r + ' <i class="fa-solid fa-xmark text-[10px] cursor-pointer text-text-secondary hover:text-danger" onclick="event.stopPropagation();removeRestaurant(\'' + r.replace(/'/g, "\\'") + '\')"></i></span>').join(''); }
-function refreshPickList() { const l = getRestaurants(), pr = loadData(KEYS.lunchPick, null); document.getElementById('restaurantPickList').innerHTML = l.map(r => '<div onclick="pickRestaurant(\'' + r.replace(/'/g, "\\'") + '\')" class="p-3 rounded-xl cursor-pointer active:scale-95 ' + (pr && pr.restaurant === r ? 'bg-pink-light border border-pink' : 'bg-warm-gray/50 hover:bg-pink-light/30') + '"><span class="text-sm">' + (pr && pr.restaurant === r ? '✅ ' : '') + r + '</span></div>').join(''); if (pr) { document.getElementById('pickResult').classList.remove('hidden'); document.getElementById('pickResult').innerHTML = '已约定今天中午去 <span class="font-medium">' + pr.restaurant + '</span> 吃饭 ✅'; } else document.getElementById('pickResult').classList.add('hidden'); }
-function pickRestaurant(n) { saveData(KEYS.lunchPick, { restaurant: n, date: getTodayStr() }); refreshPickList(); showToast('已选择：' + n + ' ✅'); }
+function switchLunchTab(t){document.getElementById('tabLunchRandom').className=t==='random'?'quick-tag tab-active':'quick-tag bg-warm-gray';document.getElementById('tabLunchPick').className=t==='pick'?'quick-tag tab-active':'quick-tag bg-warm-gray';document.getElementById('panelLunchRandom').classList.toggle('hidden',t!=='random');document.getElementById('panelLunchPick').classList.toggle('hidden',t!=='pick');if(t==='pick')refreshPickList();}
+function getRestaurants(){return loadData(KEYS.restaurants,[...DEFAULT_RESTAURANTS]);}
+function addRestaurant(){const n=document.getElementById('newRestaurant').value.trim();if(!n){showToast('请输入餐厅名称');return;}const l=getRestaurants();if(l.includes(n)){showToast('该餐厅已在列表中');return;}l.push(n);saveData(KEYS.restaurants,l);document.getElementById('newRestaurant').value='';refreshRestList();showToast('餐厅添加成功 ✅');}
+function removeRestaurant(n){let l=getRestaurants();l=l.filter(r=>r!==n);saveData(KEYS.restaurants,l);refreshRestList();refreshPickList();showToast('已删除');}
+function refreshRestList(){document.getElementById('restaurantList').innerHTML=getRestaurants().map(r=>'<span class="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-warm-gray text-xs">'+r+' <i class="fa-solid fa-xmark text-[10px] cursor-pointer text-text-secondary hover:text-danger" onclick="event.stopPropagation();removeRestaurant(\''+r.replace(/'/g,"\\'")+'\')"></i></span>').join('');}
+function refreshPickList(){const l=getRestaurants(),pr=loadData(KEYS.lunchPick,null);document.getElementById('restaurantPickList').innerHTML=l.map(r=>'<div onclick="pickRestaurant(\''+r.replace(/'/g,"\\'")+'\')" class="p-3 rounded-xl cursor-pointer active:scale-95 '+(pr&&pr.restaurant===r?'bg-pink-light border border-pink':'bg-warm-gray/50 hover:bg-pink-light/30')+'"><span class="text-sm">'+(pr&&pr.restaurant===r?'✅ ':'')+r+'</span></div>').join('');if(pr){document.getElementById('pickResult').classList.remove('hidden');document.getElementById('pickResult').innerHTML='已约定今天中午去 <span class="font-medium">'+pr.restaurant+'</span> 吃饭 ✅';}else document.getElementById('pickResult').classList.add('hidden');}
+function pickRestaurant(n){saveData(KEYS.lunchPick,{restaurant:n,date:getTodayStr()});refreshPickList();showToast('已选择：'+n+' ✅');}
+function startSpin(){if(isSpinning)return;const l=getRestaurants();if(l.length===0){showToast('请先添加餐厅');return;}isSpinning=true;document.getElementById('btnStartSpin').disabled=true;document.getElementById('spinResultActions').classList.add('hidden');const wt=document.getElementById('wheelText'),wr=document.getElementById('wheelRestaurant');const em=['🍱','🍜','🍔','🍕','🌮','🍛','🥘','🍝','🍗','🥗'];let c=0;const iv=setInterval(()=>{wt.textContent=em[Math.floor(Math.random()*em.length)];wr.textContent=l[Math.floor(Math.random()*l.length)];c++;},80);setTimeout(()=>{clearInterval(iv);const res=l[Math.floor(Math.random()*l.length)];wt.textContent='🎉';wr.textContent=res;wr.dataset.result=res;document.getElementById('spinResultActions').classList.remove('hidden');document.getElementById('btnStartSpin').disabled=false;isSpinning=false;},2500);}
+function confirmLunch(){const r=document.getElementById('wheelRestaurant').dataset.result;if(!r){showToast('请先抽签');return;}saveLunchHistory(r,'抽签');saveData(KEYS.lunchPick,{restaurant:r,date:getTodayStr()});showToast('今天中午去吃 '+r+' 🎉');const now=new Date(),rt=new Date(now.getFullYear(),now.getMonth(),now.getDate(),11,30,0),delay=rt-now;if(delay>0)setTimeout(()=>{sendNotif('午饭时间到！','今天去吃 '+r+' 哦～ 🍱');},delay);}
+function saveLunchHistory(r,m){const h=loadData(KEYS.lunchHistory,[]);h.unshift({date:getTodayStr(),restaurant:r,mode:m});const ct=new Date();ct.setDate(ct.getDate()-7);saveData(KEYS.lunchHistory,h.filter(x=>new Date(x.date)>=ct).slice(0,7));refreshLunchHistory();}
+function refreshLunchHistory(){const h=loadData(KEYS.lunchHistory,[]);document.getElementById('lunchHistory').innerHTML=h.length===0?'<p class="text-sm text-text-secondary text-center py-2">还没有约饭记录哦～</p>':h.map(x=>'<div class="flex justify-between p-2 rounded-lg bg-warm-gray/50 text-sm"><span>'+x.date+' · '+x.restaurant+'</span><span class="text-xs text-text-secondary">'+x.mode+'</span></div>').join('');}
+function refreshLunchModal(){refreshRestList();refreshPickList();refreshLunchHistory();}
 
-function startSpin() {
-  if (isSpinning) return;
-  const l = getRestaurants(); if (l.length === 0) { showToast('请先添加餐厅'); return; }
-  isSpinning = true; document.getElementById('btnStartSpin').disabled = true; document.getElementById('spinResultActions').classList.add('hidden');
-  const wt = document.getElementById('wheelText'), wr = document.getElementById('wheelRestaurant');
-  const em = ['🍱', '🍜', '🍔', '🍕', '🌮', '🍛', '🥘', '🍝', '🍗', '🥗']; let c = 0;
-  const iv = setInterval(() => { wt.textContent = em[Math.floor(Math.random() * em.length)]; wr.textContent = l[Math.floor(Math.random() * l.length)]; c++; }, 80);
-  setTimeout(() => { clearInterval(iv); const res = l[Math.floor(Math.random() * l.length)]; wt.textContent = '🎉'; wr.textContent = res; wr.dataset.result = res; document.getElementById('spinResultActions').classList.remove('hidden'); document.getElementById('btnStartSpin').disabled = false; isSpinning = false; }, 2500);
+// ================================================================
+//  3. 晚自习（基于身份）
+// ================================================================
+function refreshStudyModal(){
+  const today=getTodayStr();document.getElementById('studyDate').value=today;
+  const d = loadData(KEYS.studyRoom,{date:today,personA:'',personB:''});
+  if(d.date!==today){d.date=today;d[MY_ID]='';d[taId()]='';saveData(KEYS.studyRoom,d);}
+  document.getElementById('studyMyRoom').value=myVal(d,'');
+  document.getElementById('studyTaRoom').value=taVal(d,'');
+  showStudyResult(d);
+}
+function submitStudyRoom(){
+  const mr=document.getElementById('studyMyRoom').value.trim(),tr=document.getElementById('studyTaRoom').value.trim();
+  if(!mr&&!tr){showToast('请至少输入一个教室');return;}
+  const date=document.getElementById('studyDate').value||getTodayStr();
+  const d=loadData(KEYS.studyRoom,{date:date,personA:'',personB:''});
+  d.date=date;d[MY_ID]=mr;d[taId()]=tr;saveData(KEYS.studyRoom,d);showStudyResult(d);showToast('教室信息已提交 ✅');
+}
+function showStudyResult(d){
+  const r=document.getElementById('studyResult');r.classList.remove('hidden');
+  const mr=myVal(d,''),tr=taVal(d,'');
+  if(mr&&tr&&mr===tr){r.innerHTML='<p class="text-lg">太棒了！今天一起上晚自习 🥰</p><p class="text-sm text-text-secondary mt-1">教室：'+mr+'</p>';}
+  else{let h='<div class="space-y-2">';if(mr)h+='<p class="text-sm">📘 <span class="font-medium">我：</span>'+mr+'</p>';if(tr)h+='<p class="text-sm">📙 <span class="font-medium">TA：</span>'+tr+'</p>';if(mr&&tr&&mr!==tr){h+='<p class="text-sm text-text-secondary mt-2">不在同一个教室呢～</p><button onclick="showToast(\'已设置提醒：我19:00去找你 💕\')" class="mt-2 px-4 py-1.5 rounded-xl bg-purple-light text-purple-700 text-sm active:scale-95">我19:00去找你</button>';}h+='</div>';r.innerHTML=h;}
 }
 
-function confirmLunch() {
-  const r = document.getElementById('wheelRestaurant').dataset.result; if (!r) { showToast('请先抽签'); return; }
-  saveLunchHistory(r, '抽签'); saveData(KEYS.lunchPick, { restaurant: r, date: getTodayStr() }); showToast('今天中午去吃 ' + r + ' 🎉');
-  const now = new Date(), rt = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 11, 30, 0), delay = rt - now;
-  if (delay > 0) setTimeout(() => { sendNotif('午饭时间到！', '今天去吃 ' + r + ' 哦～ 🍱'); }, delay);
+// ================================================================
+//  4. 快递（基于身份）
+// ================================================================
+function switchPackageTab(t){document.getElementById('tabPendingPkg').className=t==='pending'?'quick-tag tab-active':'quick-tag bg-warm-gray';document.getElementById('tabPickedPkg').className=t==='picked'?'quick-tag tab-active':'quick-tag bg-warm-gray';refreshPackageList(t);}
+function addPackage(){
+  const code=document.getElementById('pkgCode').value.trim(),company=document.getElementById('pkgCompany').value.trim(),location=document.getElementById('pkgLocation').value.trim();
+  if(!code||!company||!location){showToast('请填收取件码、快递公司和位置');return;}
+  const pkgs=loadData(KEYS.packages,{pending:[],picked:[]});
+  const ownerId = document.getElementById('pkgOwner').value === 'me' ? MY_ID : taId();
+  const ownerLabel = ownerId === MY_ID ? '我' : taName();
+  pkgs.pending.push({id:Date.now(),code,company,location,note:document.getElementById('pkgNote').value.trim(),owner:ownerId,time:new Date().toISOString()});
+  saveData(KEYS.packages,pkgs);
+  ['pkgCode','pkgCompany','pkgLocation','pkgNote'].forEach(id=>document.getElementById(id).value='');
+  refreshPackageList('pending');sendNotif('新快递提醒 📦',ownerLabel+'有一个新快递在'+location+'，取件码：'+code);showToast('快递已添加 ✅');
 }
-
-function saveLunchHistory(r, m) { const h = loadData(KEYS.lunchHistory, []); h.unshift({ date: getTodayStr(), restaurant: r, mode: m }); const ct = new Date(); ct.setDate(ct.getDate() - 7); saveData(KEYS.lunchHistory, h.filter(x => new Date(x.date) >= ct).slice(0, 7)); refreshLunchHistory(); }
-function refreshLunchHistory() { const h = loadData(KEYS.lunchHistory, []); document.getElementById('lunchHistory').innerHTML = h.length === 0 ? '<p class="text-sm text-text-secondary text-center py-2">还没有约饭记录哦～</p>' : h.map(x => '<div class="flex justify-between p-2 rounded-lg bg-warm-gray/50 text-sm"><span>' + x.date + ' · ' + x.restaurant + '</span><span class="text-xs text-text-secondary">' + x.mode + '</span></div>').join(''); }
-function refreshLunchModal() { refreshRestList(); refreshPickList(); refreshLunchHistory(); }
-
-// ================================================================
-//  3. 晚自习
-// ================================================================
-function refreshStudyModal() { const today = getTodayStr(); document.getElementById('studyDate').value = today; const d = loadData(KEYS.studyRoom, { date: today, myRoom: '', taRoom: '' }); if (d.date !== today) { saveData(KEYS.studyRoom, { date: today, myRoom: '', taRoom: '' }); document.getElementById('studyMyRoom').value = ''; document.getElementById('studyTaRoom').value = ''; document.getElementById('studyResult').classList.add('hidden'); } else { document.getElementById('studyMyRoom').value = d.myRoom || ''; document.getElementById('studyTaRoom').value = d.taRoom || ''; showStudyResult(d); } }
-function submitStudyRoom() { const mr = document.getElementById('studyMyRoom').value.trim(), tr = document.getElementById('studyTaRoom').value.trim(); if (!mr && !tr) { showToast('请至少输入一个教室'); return; } const date = document.getElementById('studyDate').value || getTodayStr(); const d = { date, myRoom: mr, taRoom: tr }; saveData(KEYS.studyRoom, d); showStudyResult(d); showToast('教室信息已提交 ✅'); }
-function showStudyResult(d) { const r = document.getElementById('studyResult'); r.classList.remove('hidden'); if (d.myRoom && d.taRoom && d.myRoom === d.taRoom) { r.innerHTML = '<p class="text-lg">太棒了！今天一起上晚自习 🥰</p><p class="text-sm text-text-secondary mt-1">教室：' + d.myRoom + '</p>'; } else { let h = '<div class="space-y-2">'; if (d.myRoom) h += '<p class="text-sm">📘 <span class="font-medium">我：</span>' + d.myRoom + '</p>'; if (d.taRoom) h += '<p class="text-sm">📙 <span class="font-medium">TA：</span>' + d.taRoom + '</p>'; if (d.myRoom && d.taRoom && d.myRoom !== d.taRoom) { h += '<p class="text-sm text-text-secondary mt-2">不在同一个教室呢～</p><button onclick="showToast(\'已设置提醒：我19:00去找你 💕\')" class="mt-2 px-4 py-1.5 rounded-xl bg-purple-light text-purple-700 text-sm active:scale-95">我19:00去找你</button>'; } h += '</div>'; r.innerHTML = h; } }
+function copyPickupCode(c){navigator.clipboard.writeText(c).then(()=>showToast('取件码已复制 📋'));}
+function markPackagePicked(id){const pkgs=loadData(KEYS.packages,{pending:[],picked:[]});const idx=pkgs.pending.findIndex(p=>p.id===id);if(idx===-1)return;const item=pkgs.pending.splice(idx,1)[0];item.pickedTime=new Date().toISOString();pkgs.picked.unshift(item);saveData(KEYS.packages,pkgs);refreshPackageList('pending');showToast('已标记为已取 ✅');}
+function deletePackage(id,lt){if(!confirm('确定删除？'))return;const pkgs=loadData(KEYS.packages,{pending:[],picked:[]});pkgs[lt]=pkgs[lt].filter(p=>p.id!==id);saveData(KEYS.packages,pkgs);refreshPackageList(lt);}
+function refreshPackageList(tab){tab=tab||'pending';const pkgs=loadData(KEYS.packages,{pending:[],picked:[]});const list=tab==='pending'?pkgs.pending:pkgs.picked;const c=document.getElementById('packageList');if(list.length===0){c.innerHTML=tab==='pending'?'<div class="text-center py-8 text-text-secondary"><div class="text-3xl mb-2">📭</div><p>暂时没有快递要取哦～</p></div>':'<div class="text-center py-8 text-text-secondary"><div class="text-3xl mb-2">📪</div><p>还没有已取的快递</p></div>';return;}
+c.innerHTML=list.map(p=>{const ownerLabel=p.owner===MY_ID?'📘 我买的':(p.owner===taId()?'📙 TA买的':'📦');return'<div class="p-3 rounded-xl bg-warm-gray/50 text-sm"><div class="flex items-start justify-between"><div class="flex-1"><p><span class="font-medium">取件码：</span><span class="text-pink-dark font-medium">'+p.code+'</span></p><p class="text-xs text-text-secondary mt-0.5">'+p.company+' · '+p.location+(p.note?' · '+p.note:'')+'</p><p class="text-xs text-text-secondary">'+ownerLabel+' · '+new Date(p.time).toLocaleDateString()+'</p></div><div class="flex flex-col gap-1 ml-2"><button onclick="copyPickupCode(\''+p.code+'\')" class="px-2 py-1 rounded-lg bg-blue-light text-blue-700 text-xs whitespace-nowrap active:scale-95"><i class="fa-solid fa-copy"></i> 复制</button>'+(tab==='pending'?'<button onclick="markPackagePicked('+p.id+')" class="px-2 py-1 rounded-lg bg-success-light text-green-700 text-xs whitespace-nowrap active:scale-95">✅ 已取</button>':'<button onclick="deletePackage('+p.id+',\'picked\')" class="px-2 py-1 rounded-lg bg-danger/10 text-danger text-xs whitespace-nowrap active:scale-95">🗑 删除</button>')+'</div></div></div>';}).join('');}
 
 // ================================================================
-//  4. 快递
+//  5. 经期（共享数据）
 // ================================================================
-function switchPackageTab(t) { document.getElementById('tabPendingPkg').className = t === 'pending' ? 'quick-tag tab-active' : 'quick-tag bg-warm-gray'; document.getElementById('tabPickedPkg').className = t === 'picked' ? 'quick-tag tab-active' : 'quick-tag bg-warm-gray'; refreshPackageList(t); }
-function addPackage() { const code = document.getElementById('pkgCode').value.trim(), company = document.getElementById('pkgCompany').value.trim(), location = document.getElementById('pkgLocation').value.trim(); if (!code || !company || !location) { showToast('请填收取件码、快递公司和位置'); return; } const pkgs = loadData(KEYS.packages, { pending: [], picked: [] }); pkgs.pending.push({ id: Date.now(), code, company, location, note: document.getElementById('pkgNote').value.trim(), owner: document.getElementById('pkgOwner').value, time: new Date().toISOString() }); saveData(KEYS.packages, pkgs); ['pkgCode', 'pkgCompany', 'pkgLocation', 'pkgNote'].forEach(id => document.getElementById(id).value = ''); refreshPackageList('pending'); sendNotif('新快递提醒 📦', '有新的快递在' + location + '，取件码：' + code); showToast('快递已添加 ✅'); }
-function copyPickupCode(code) { navigator.clipboard.writeText(code).then(() => showToast('取件码已复制 📋')); }
-function markPackagePicked(id) { const pkgs = loadData(KEYS.packages, { pending: [], picked: [] }); const idx = pkgs.pending.findIndex(p => p.id === id); if (idx === -1) return; const item = pkgs.pending.splice(idx, 1)[0]; item.pickedTime = new Date().toISOString(); pkgs.picked.unshift(item); saveData(KEYS.packages, pkgs); refreshPackageList('pending'); showToast('已标记为已取 ✅'); }
-function deletePackage(id, lt) { if (!confirm('确定删除？')) return; const pkgs = loadData(KEYS.packages, { pending: [], picked: [] }); pkgs[lt] = pkgs[lt].filter(p => p.id !== id); saveData(KEYS.packages, pkgs); refreshPackageList(lt); }
-function refreshPackageList(tab) { tab = tab || 'pending'; const pkgs = loadData(KEYS.packages, { pending: [], picked: [] }); const list = tab === 'pending' ? pkgs.pending : pkgs.picked; const c = document.getElementById('packageList'); if (list.length === 0) { c.innerHTML = tab === 'pending' ? '<div class="text-center py-8 text-text-secondary"><div class="text-3xl mb-2">📭</div><p>暂时没有快递要取哦～</p></div>' : '<div class="text-center py-8 text-text-secondary"><div class="text-3xl mb-2">📪</div><p>还没有已取的快递</p></div>'; return; } c.innerHTML = list.map(p => '<div class="p-3 rounded-xl bg-warm-gray/50 text-sm"><div class="flex items-start justify-between"><div class="flex-1"><p><span class="font-medium">取件码：</span><span class="text-pink-dark font-medium">' + p.code + '</span></p><p class="text-xs text-text-secondary mt-0.5">' + p.company + ' · ' + p.location + (p.note ? ' · ' + p.note : '') + '</p><p class="text-xs text-text-secondary">' + (p.owner === 'mine' ? '📘 我买的' : '📙 TA买的') + ' · ' + new Date(p.time).toLocaleDateString() + '</p></div><div class="flex flex-col gap-1 ml-2"><button onclick="copyPickupCode(\'' + p.code + '\')" class="px-2 py-1 rounded-lg bg-blue-light text-blue-700 text-xs whitespace-nowrap active:scale-95"><i class="fa-solid fa-copy"></i> 复制</button>' + (tab === 'pending' ? '<button onclick="markPackagePicked(' + p.id + ')" class="px-2 py-1 rounded-lg bg-success-light text-green-700 text-xs whitespace-nowrap active:scale-95">✅ 已取</button>' : '<button onclick="deletePackage(' + p.id + ',\'picked\')" class="px-2 py-1 rounded-lg bg-danger/10 text-danger text-xs whitespace-nowrap active:scale-95">🗑 删除</button>') + '</div></div></div>').join(''); }
+function refreshPeriodModal(){const period=loadData(KEYS.period,{lastStart:'',cycleDays:28,durationDays:5});document.getElementById('periodLastStart').value=period.lastStart||'';document.getElementById('periodCycle').value=period.cycleDays;document.getElementById('periodDuration').value=period.durationDays;['periodLastStart','periodCycle','periodDuration'].forEach(id=>{document.getElementById(id).onchange=()=>{period.lastStart=document.getElementById('periodLastStart').value;period.cycleDays=parseInt(document.getElementById('periodCycle').value)||28;period.durationDays=parseInt(document.getElementById('periodDuration').value)||5;saveData(KEYS.period,period);refreshPeriodDisp(period);renderMiniCal(period);};});refreshPeriodDisp(period);renderMiniCal(period);refreshPeriodHist();}
+function refreshPeriodDisp(period){const cd=document.getElementById('periodCountdown');if(!period.lastStart){cd.innerHTML='🌸 请先设置上次经期开始日期';return;}const ls=new Date(period.lastStart),ns=new Date(ls);ns.setDate(ns.getDate()+period.cycleDays);const today=new Date();today.setHours(0,0,0,0);let dd=Math.ceil((ns-today)/(1000*60*60*24));if(dd<0){const cyc=Math.ceil(Math.abs(dd)/period.cycleDays);ns.setDate(ns.getDate()+cyc*period.cycleDays);dd=Math.ceil((ns-today)/(1000*60*60*24));}if(dd===0){cd.innerHTML='🌸 今天是经期第一天，要好好休息呀 😘';sendNotif('经期提醒 🌸','今天是经期第一天，要好好休息呀 😘');}else if(dd<=3){cd.innerHTML='⚠️ 距离下次经期还有 <span class="text-pink-dark font-bold">'+dd+'</span> 天，记得多喝热水 ❤️';sendNotif('经期提醒 🌸','宝贝，你的经期快到了，记得多喝热水 ❤️');}else cd.innerHTML='🌸 距离下次经期还有 <span class="text-pink-dark font-bold">'+dd+'</span> 天';}
+function renderMiniCal(period){const today=new Date(),y=today.getFullYear(),m=today.getMonth();const dim=new Date(y,m+1,0).getDate(),fd=new Date(y,m,1).getDay();let pds=new Set(),ovd=null;if(period.lastStart){const ls=new Date(period.lastStart),cms=period.cycleDays*24*60*60*1000;let cs=new Date(ls);while(cs<=new Date(y,m,dim)){for(let i=0;i<period.durationDays;i++){const d=new Date(cs);d.setDate(d.getDate()+i);if(d.getMonth()===m&&d.getFullYear()===y)pds.add(d.getDate());}const ov=new Date(cs);ov.setDate(ov.getDate()+period.cycleDays-14);if(ov.getMonth()===m&&ov.getFullYear()===y)ovd=ov.getDate();cs=new Date(cs.getTime()+cms);}}let h='<div class="text-center text-sm font-medium mb-2">'+y+'年'+(m+1)+'月</div><div class="grid grid-cols-7 gap-1 text-center text-xs">';['日','一','二','三','四','五','六'].forEach(d=>h+='<div class="text-text-secondary pb-1">'+d+'</div>');for(let i=0;i<fd;i++)h+='<div></div>';for(let d=1;d<=dim;d++){let cls='py-1 rounded-full text-xs';if(d===today.getDate())cls+=' ring-2 ring-pink-dark font-bold';if(pds.has(d))cls+=' bg-pink-light text-pink-dark';else if(d===ovd)cls+=' bg-purple-light text-purple-600';h+='<div class="'+cls+'">'+d+'</div>';}h+='</div><div class="flex gap-3 text-xs text-text-secondary mt-2 justify-center"><span>🟣 排卵期</span><span>🌸 经期</span></div>';document.getElementById('miniCalendar').innerHTML=h;}
+function recordPeriod(){const start=document.getElementById('periodRecordStart').value,end=document.getElementById('periodRecordEnd').value;if(!start||!end){showToast('请选择开始和结束日期');return;}const hist=loadData(KEYS.periodHistory,[]);hist.unshift({start,end});saveData(KEYS.periodHistory,hist);const period=loadData(KEYS.period,{lastStart:'',cycleDays:28,durationDays:5});period.lastStart=start;period.durationDays=Math.ceil((new Date(end)-new Date(start))/(1000*60*60*24))+1;if(hist.length>=2){const cyc=[];for(let i=0;i<hist.length-1;i++){const diff=Math.ceil((new Date(hist[i].start)-new Date(hist[i+1].start))/(1000*60*60*24));if(diff>0&&diff<60)cyc.push(diff);}if(cyc.length>0)period.cycleDays=Math.round(cyc.reduce((a,b)=>a+b,0)/cyc.length);}saveData(KEYS.period,period);document.getElementById('periodRecordStart').value='';document.getElementById('periodRecordEnd').value='';refreshPeriodModal();showToast('经期记录已保存 ✅');}
+function refreshPeriodHist(){const hist=loadData(KEYS.periodHistory,[]);document.getElementById('periodHistoryList').innerHTML=hist.length===0?'<p class="text-sm text-text-secondary">暂无记录</p>':hist.slice(0,5).map(h=>'<div class="flex justify-between p-1.5 text-sm bg-warm-gray/50 rounded-lg"><span>'+h.start+' → '+h.end+'</span><button onclick="delPeriodRec(\''+h.start+'\')" class="text-xs text-danger">删除</button></div>').join('');}
+function delPeriodRec(start){let hist=loadData(KEYS.periodHistory,[]);hist=hist.filter(h=>h.start!==start);saveData(KEYS.periodHistory,hist);refreshPeriodHist();}
 
 // ================================================================
-//  5. 经期
+//  6. 纪念日（共享数据）
 // ================================================================
-function refreshPeriodModal() { const period = loadData(KEYS.period, { lastStart: '', cycleDays: 28, durationDays: 5 }); document.getElementById('periodLastStart').value = period.lastStart || ''; document.getElementById('periodCycle').value = period.cycleDays; document.getElementById('periodDuration').value = period.durationDays; ['periodLastStart', 'periodCycle', 'periodDuration'].forEach(id => { document.getElementById(id).onchange = () => { period.lastStart = document.getElementById('periodLastStart').value; period.cycleDays = parseInt(document.getElementById('periodCycle').value) || 28; period.durationDays = parseInt(document.getElementById('periodDuration').value) || 5; saveData(KEYS.period, period); refreshPeriodDisp(period); renderMiniCal(period); }; }); refreshPeriodDisp(period); renderMiniCal(period); refreshPeriodHist(); }
-function refreshPeriodDisp(period) { const cd = document.getElementById('periodCountdown'); if (!period.lastStart) { cd.innerHTML = '🌸 请先设置上次经期开始日期'; return; } const ls = new Date(period.lastStart), ns = new Date(ls); ns.setDate(ns.getDate() + period.cycleDays); const today = new Date(); today.setHours(0, 0, 0, 0); let dd = Math.ceil((ns - today) / (1000 * 60 * 60 * 24)); if (dd < 0) { const cyc = Math.ceil(Math.abs(dd) / period.cycleDays); ns.setDate(ns.getDate() + cyc * period.cycleDays); dd = Math.ceil((ns - today) / (1000 * 60 * 60 * 24)); } if (dd === 0) { cd.innerHTML = '🌸 今天是经期第一天，要好好休息呀 😘'; sendNotif('经期提醒 🌸', '今天是经期第一天，要好好休息呀 😘'); } else if (dd <= 3) { cd.innerHTML = '⚠️ 距离下次经期还有 <span class="text-pink-dark font-bold">' + dd + '</span> 天，记得多喝热水 ❤️'; sendNotif('经期提醒 🌸', '宝贝，你的经期快到了，记得多喝热水，不要吃冰的哦 ❤️'); } else cd.innerHTML = '🌸 距离下次经期还有 <span class="text-pink-dark font-bold">' + dd + '</span> 天'; }
-function renderMiniCal(period) { const today = new Date(), y = today.getFullYear(), m = today.getMonth(); const dim = new Date(y, m + 1, 0).getDate(), fd = new Date(y, m, 1).getDay(); let pds = new Set(), ovd = null; if (period.lastStart) { const ls = new Date(period.lastStart), cms = period.cycleDays * 24 * 60 * 60 * 1000; let cs = new Date(ls); while (cs <= new Date(y, m, dim)) { for (let i = 0; i < period.durationDays; i++) { const d = new Date(cs); d.setDate(d.getDate() + i); if (d.getMonth() === m && d.getFullYear() === y) pds.add(d.getDate()); } const ov = new Date(cs); ov.setDate(ov.getDate() + period.cycleDays - 14); if (ov.getMonth() === m && ov.getFullYear() === y) ovd = ov.getDate(); cs = new Date(cs.getTime() + cms); } } let h = '<div class="text-center text-sm font-medium mb-2">' + y + '年' + (m + 1) + '月</div><div class="grid grid-cols-7 gap-1 text-center text-xs">'; ['日', '一', '二', '三', '四', '五', '六'].forEach(d => h += '<div class="text-text-secondary pb-1">' + d + '</div>'); for (let i = 0; i < fd; i++) h += '<div></div>'; for (let d = 1; d <= dim; d++) { let cls = 'py-1 rounded-full text-xs'; if (d === today.getDate()) cls += ' ring-2 ring-pink-dark font-bold'; if (pds.has(d)) cls += ' bg-pink-light text-pink-dark'; else if (d === ovd) cls += ' bg-purple-light text-purple-600'; h += '<div class="' + cls + '">' + d + '</div>'; } h += '</div><div class="flex gap-3 text-xs text-text-secondary mt-2 justify-center"><span>🟣 排卵期</span><span>🌸 经期</span></div>'; document.getElementById('miniCalendar').innerHTML = h; }
-function recordPeriod() { const start = document.getElementById('periodRecordStart').value, end = document.getElementById('periodRecordEnd').value; if (!start || !end) { showToast('请选择开始和结束日期'); return; } const hist = loadData(KEYS.periodHistory, []); hist.unshift({ start, end }); saveData(KEYS.periodHistory, hist); const period = loadData(KEYS.period, { lastStart: '', cycleDays: 28, durationDays: 5 }); period.lastStart = start; period.durationDays = Math.ceil((new Date(end) - new Date(start)) / (1000 * 60 * 60 * 24)) + 1; if (hist.length >= 2) { const cyc = []; for (let i = 0; i < hist.length - 1; i++) { const diff = Math.ceil((new Date(hist[i].start) - new Date(hist[i + 1].start)) / (1000 * 60 * 60 * 24)); if (diff > 0 && diff < 60) cyc.push(diff); } if (cyc.length > 0) period.cycleDays = Math.round(cyc.reduce((a, b) => a + b, 0) / cyc.length); } saveData(KEYS.period, period); document.getElementById('periodRecordStart').value = ''; document.getElementById('periodRecordEnd').value = ''; refreshPeriodModal(); showToast('经期记录已保存 ✅'); }
-function refreshPeriodHist() { const hist = loadData(KEYS.periodHistory, []); document.getElementById('periodHistoryList').innerHTML = hist.length === 0 ? '<p class="text-sm text-text-secondary">暂无记录</p>' : hist.slice(0, 5).map(h => '<div class="flex justify-between p-1.5 text-sm bg-warm-gray/50 rounded-lg"><span>' + h.start + ' → ' + h.end + '</span><button onclick="delPeriodRec(\'' + h.start + '\')" class="text-xs text-danger">删除</button></div>').join(''); }
-function delPeriodRec(start) { let hist = loadData(KEYS.periodHistory, []); hist = hist.filter(h => h.start !== start); saveData(KEYS.periodHistory, hist); refreshPeriodHist(); }
-
-// ================================================================
-//  6. 纪念日
-// ================================================================
-function switchAnniversaryTab(t) { curAnniTab = t; saveData(KEYS.anniversaryTab, t); document.getElementById('tabAnniversary').className = t === 'anniversary' ? 'quick-tag tab-active' : 'quick-tag bg-warm-gray'; document.getElementById('tabBirthday').className = t === 'birthday' ? 'quick-tag tab-active' : 'quick-tag bg-warm-gray'; refreshAnniList(); }
-function addAnniversary() { const date = document.getElementById('anniDate').value, name = document.getElementById('anniName').value.trim(); if (!date || !name) { showToast('请填写日期和事件名称'); return; } const items = loadData(KEYS.anniversaries, []); items.push({ id: Date.now(), date, name, note: document.getElementById('anniNote').value.trim(), repeatYearly: document.getElementById('anniRepeat').checked, type: curAnniTab }); saveData(KEYS.anniversaries, items); ['anniDate', 'anniName', 'anniNote'].forEach(id => document.getElementById(id).value = ''); refreshAnniList(); showToast('记录添加成功 ✅'); }
-function deleteAnniversary(id) { if (!confirm('确定删除？')) return; let items = loadData(KEYS.anniversaries, []); items = items.filter(i => i.id !== id); saveData(KEYS.anniversaries, items); refreshAnniList(); }
-function refreshAnniversaryModal() { curAnniTab = loadData(KEYS.anniversaryTab, 'anniversary'); document.getElementById('tabAnniversary').className = curAnniTab === 'anniversary' ? 'quick-tag tab-active' : 'quick-tag bg-warm-gray'; document.getElementById('tabBirthday').className = curAnniTab === 'birthday' ? 'quick-tag tab-active' : 'quick-tag bg-warm-gray'; refreshAnniList(); }
-function refreshAnniList() { const items = loadData(KEYS.anniversaries, []).filter(i => i.type === curAnniTab); const today = new Date(); today.setHours(0, 0, 0, 0); function du(item) { const t = new Date(item.date); let n = new Date(today.getFullYear(), t.getMonth(), t.getDate()); if (n < today) { if (item.repeatYearly) n.setFullYear(n.getFullYear() + 1); else return null; } return Math.ceil((n - today) / (1000 * 60 * 60 * 24)); } const wc = items.map(i => ({ item: i, days: du(i) })).filter(x => x.days !== null).sort((a, b) => a.days - b.days); const c = document.getElementById('anniversaryList'); if (wc.length === 0) { c.innerHTML = '<div class="text-center py-8 text-text-secondary"><div class="text-3xl mb-2">💝</div><p>还没有记录哦～</p></div>'; return; } c.innerHTML = wc.map(({ item, days }) => { const em = days === 0 ? '🎉' : days <= 3 ? '⏰' : '📅', cls = days === 0 ? 'bg-pink-light border border-pink' : 'bg-warm-gray/50'; return '<div class="p-3 rounded-xl ' + cls + ' flex items-center justify-between text-sm"><div><p class="font-medium">' + em + ' ' + item.name + '</p><p class="text-xs text-text-secondary">' + item.date + (item.note ? ' · ' + item.note : '') + (item.repeatYearly ? ' · 每年' : '') + '</p><p class="text-xs text-pink-dark font-medium mt-0.5">' + (days === 0 ? '就是今天！🎉' : '距离还有 <span class="font-bold">' + days + '</span> 天') + '</p></div><button onclick="deleteAnniversary(' + item.id + ')" class="text-text-secondary hover:text-danger text-xs"><i class="fa-solid fa-trash"></i></button></div>'; }).join(''); wc.forEach(({ item, days }) => { if (days === 0) sendNotif('纪念日提醒 💝', '今天是' + item.name + '！'); else if (days === 3) sendNotif('纪念日提醒 💝', '还有3天就是' + item.name + '了，准备惊喜吧～'); }); }
+function switchAnniversaryTab(t){curAnniTab=t;saveData(KEYS.anniversaryTab,t);document.getElementById('tabAnniversary').className=t==='anniversary'?'quick-tag tab-active':'quick-tag bg-warm-gray';document.getElementById('tabBirthday').className=t==='birthday'?'quick-tag tab-active':'quick-tag bg-warm-gray';refreshAnniList();}
+function addAnniversary(){const date=document.getElementById('anniDate').value,name=document.getElementById('anniName').value.trim();if(!date||!name){showToast('请填写日期和事件名称');return;}const items=loadData(KEYS.anniversaries,[]);items.push({id:Date.now(),date,name,note:document.getElementById('anniNote').value.trim(),repeatYearly:document.getElementById('anniRepeat').checked,type:curAnniTab});saveData(KEYS.anniversaries,items);['anniDate','anniName','anniNote'].forEach(id=>document.getElementById(id).value='');refreshAnniList();showToast('记录添加成功 ✅');}
+function deleteAnniversary(id){if(!confirm('确定删除？'))return;let items=loadData(KEYS.anniversaries,[]);items=items.filter(i=>i.id!==id);saveData(KEYS.anniversaries,items);refreshAnniList();}
+function refreshAnniversaryModal(){curAnniTab=loadData(KEYS.anniversaryTab,'anniversary');document.getElementById('tabAnniversary').className=curAnniTab==='anniversary'?'quick-tag tab-active':'quick-tag bg-warm-gray';document.getElementById('tabBirthday').className=curAnniTab==='birthday'?'quick-tag tab-active':'quick-tag bg-warm-gray';refreshAnniList();}
+function refreshAnniList(){const items=loadData(KEYS.anniversaries,[]).filter(i=>i.type===curAnniTab);const today=new Date();today.setHours(0,0,0,0);function du(item){const t=new Date(item.date);let n=new Date(today.getFullYear(),t.getMonth(),t.getDate());if(n<today){if(item.repeatYearly)n.setFullYear(n.getFullYear()+1);else return null;}return Math.ceil((n-today)/(1000*60*60*24));}const wc=items.map(i=>({item:i,days:du(i)})).filter(x=>x.days!==null).sort((a,b)=>a.days-b.days);const c=document.getElementById('anniversaryList');if(wc.length===0){c.innerHTML='<div class="text-center py-8 text-text-secondary"><div class="text-3xl mb-2">💝</div><p>还没有记录哦～</p></div>';return;}c.innerHTML=wc.map(({item,days})=>{const em=days===0?'🎉':days<=3?'⏰':'📅',cls=days===0?'bg-pink-light border border-pink':'bg-warm-gray/50';return'<div class="p-3 rounded-xl '+cls+' flex items-center justify-between text-sm"><div><p class="font-medium">'+em+' '+item.name+'</p><p class="text-xs text-text-secondary">'+item.date+(item.note?' · '+item.note:'')+(item.repeatYearly?' · 每年':'')+'</p><p class="text-xs text-pink-dark font-medium mt-0.5">'+(days===0?'就是今天！🎉':'距离还有 <span class="font-bold">'+days+'</span> 天')+'</p></div><button onclick="deleteAnniversary('+item.id+')" class="text-text-secondary hover:text-danger text-xs"><i class="fa-solid fa-trash"></i></button></div>';}).join('');wc.forEach(({item,days})=>{if(days===0)sendNotif('纪念日提醒 💝','今天是'+item.name+'！');else if(days===3)sendNotif('纪念日提醒 💝','还有3天就是'+item.name+'了');});}
 
 // ================================================================
 //  7. AI助理
 // ================================================================
-function aiQuickAsk(q) { document.getElementById('aiInput').value = q; aiSendMessage(); }
-function aiSendMessage() { const inp = document.getElementById('aiInput'), msg = inp.value.trim(); if (!msg) return; inp.value = ''; addAiMsg('user', msg); setTimeout(() => addAiMsg('ai', genAiReply(msg)), 600); }
-function addAiMsg(role, content) { const chat = loadData(KEYS.aiChat, []); chat.push({ role, content, time: new Date().toISOString() }); if (chat.length > 50) chat.splice(0, chat.length - 50); saveData(KEYS.aiChat, chat); renderAiMsgs(); }
-function renderAiMsgs() { const chat = loadData(KEYS.aiChat, []), c = document.getElementById('aiChatWindow'); c.innerHTML = chat.length === 0 ? '<div class="text-center py-8 text-text-secondary"><div class="text-3xl mb-2">🤖</div><p>你好呀～我是你们的AI小助手，有什么可以帮你的吗？</p></div>' : chat.map(m => { const isU = m.role === 'user'; return '<div class="flex ' + (isU ? 'justify-end' : 'justify-start') + '"><div class="max-w-[80%] px-3 py-2 rounded-2xl text-sm ' + (isU ? 'bg-gradient-to-r from-pink to-blue text-white rounded-br-md' : 'bg-white rounded-bl-md shadow-sm') + '">' + m.content + '</div></div>'; }).join(''); c.scrollTop = c.scrollHeight; }
-function refreshAiChat() { renderAiMsgs(); document.getElementById('aiInput').focus(); }
-function genAiReply(msg) {
-  const l = msg.toLowerCase();
-  if (l.includes('有空') || l.includes('空闲') || l.includes('没课')) { const sch = loadData(KEYS.schedule, { mine: [], ta: [] }), week = loadData(KEYS.currentWeek, 1); const days = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']; const slots = [{ l: '1-2节(8:00-9:40)', s: '08:00', e: '09:40' }, { l: '3-4节(10:00-11:40)', s: '10:00', e: '11:40' }, { l: '5-6节(14:00-15:40)', s: '14:00', e: '15:40' }, { l: '7-8节(16:00-17:40)', s: '16:00', e: '17:40' }, { l: '9-10节(19:00-20:40)', s: '19:00', e: '20:40' }]; function hc(p, d, s, e) { return sch[p].some(c => { if (c.day !== d || c.startTime >= e || c.endTime <= s) return false; if (c.weeks && !parseWeekStr(c.weeks).includes(week)) return false; if (c.weekType === 'odd' && week % 2 === 0) return false; if (c.weekType === 'even' && week % 2 === 1) return false; return true; }); } const today = new Date().getDay(), tf = []; slots.forEach(sl => { if (!hc('mine', today, sl.s, sl.e) && !hc('ta', today, sl.s, sl.e)) tf.push(sl.l); }); if (tf.length > 0) return '宝贝～今天' + days[today] + '你们有 ' + tf.length + ' 个共同空闲时段哦 💕\n' + tf.join('、') + '\n可以一起吃饭、散步或者去图书馆呀～'; return '唔...今天' + days[today] + '你们好像都有课呢 😢\n不过没关系！课间也可以发消息互相加油哦 💪'; }
-  if (l.includes('约饭') || l.includes('吃饭') || l.includes('餐厅')) { const h = loadData(KEYS.lunchHistory, []); if (h.length === 0) return '最近还没有约饭记录呢～快去吃好吃的吧 🍱'; return '最近的约饭记录来啦 📋\n' + h.slice(0, 5).map(x => '· ' + x.date + ' - ' + x.restaurant + ' (' + x.mode + ')').join('\n'); }
-  if (l.includes('快递') || l.includes('取件')) { const pkgs = loadData(KEYS.packages, { pending: [], picked: [] }); if (pkgs.pending.length === 0) return '太棒了！没有待取的快递 ✅'; return '宝贝，还有 ' + pkgs.pending.length + ' 个快递没取哦 📦\n' + pkgs.pending.map(p => '· ' + p.company + ' - 取件码：' + p.code + ' (' + p.location + ')').join('\n'); }
-  if (l.includes('纪念日') || l.includes('生日') || l.includes('倒计时')) { const items = loadData(KEYS.anniversaries, []); if (items.length === 0) return '还没有添加纪念日或生日哦～快去添加吧 💝'; const today = new Date(); today.setHours(0, 0, 0, 0); const wd = items.map(item => { const t = new Date(item.date); let n = new Date(today.getFullYear(), t.getMonth(), t.getDate()); if (n < today && item.repeatYearly) n.setFullYear(n.getFullYear() + 1); if (n < today && !item.repeatYearly) return null; return { item, days: Math.ceil((n - today) / (1000 * 60 * 60 * 24)) }; }).filter(x => x).sort((a, b) => a.days - b.days); if (wd.length === 0) return '最近的纪念日/生日都已经过了呢～'; return '最近的纪念日/生日倒计时 💝\n' + wd.slice(0, 5).map(({ item, days }) => '· ' + item.name + ' - ' + (days === 0 ? '🎉 就是今天！' : '还有 ' + days + ' 天') + ' (' + item.date + ')').join('\n'); }
-  if (l.includes('经期') || l.includes('月经') || l.includes('大姨妈')) { const period = loadData(KEYS.period, { lastStart: '', cycleDays: 28, durationDays: 5 }); if (!period.lastStart) return '还没有设置经期信息哦～去「经期预警」里设置一下吧 🌸'; const ls = new Date(period.lastStart), ns = new Date(ls); ns.setDate(ns.getDate() + period.cycleDays); const today = new Date(); today.setHours(0, 0, 0, 0); let dd = Math.ceil((ns - today) / (1000 * 60 * 60 * 24)); if (dd < 0) { const cyc = Math.ceil(Math.abs(dd) / period.cycleDays); ns.setDate(ns.getDate() + cyc * period.cycleDays); dd = Math.ceil((ns - today) / (1000 * 60 * 60 * 24)); } if (dd === 0) return '今天是经期第一天呢，要好好休息呀 😘 多喝热水，不要吃冰的哦～'; if (dd <= 3) return '经期快到了哦，还有 ' + dd + ' 天 🌸 记得提前准备好卫生用品，多喝热水 ❤️'; return '距离下次经期还有 ' + dd + ' 天 🌸 一切正常，继续保持好心情哦～'; }
-  if (l.includes('推荐') || l.includes('吃什么') || l.includes('今天中午')) { const rs = getRestaurants(); return '今天要不要试试去吃「' + rs[Math.floor(Math.random() * rs.length)] + '」呀？😋\n随机推荐，仅供参考哦～'; }
-  const dr = ['嘻嘻，有什么可以帮你的呀？💕', '宝贝～我在呢！试试问我「今天什么时候有空？」😊', '你好呀亲爱的！需要查什么信息吗？📋', '我在呢我在呢～要不要看看最近的纪念日倒计时？💝']; return dr[Math.floor(Math.random() * dr.length)];
-}
+function aiQuickAsk(q){document.getElementById('aiInput').value=q;aiSendMessage();}
+function aiSendMessage(){const inp=document.getElementById('aiInput'),msg=inp.value.trim();if(!msg)return;inp.value='';addAiMsg('user',msg);setTimeout(()=>addAiMsg('ai',genAiReply(msg)),600);}
+function addAiMsg(role,content){const chat=loadData(KEYS.aiChat,[]);chat.push({role,content,time:new Date().toISOString()});if(chat.length>50)chat.splice(0,chat.length-50);saveData(KEYS.aiChat,chat);renderAiMsgs();}
+function renderAiMsgs(){const chat=loadData(KEYS.aiChat,[]),c=document.getElementById('aiChatWindow');c.innerHTML=chat.length===0?'<div class="text-center py-8 text-text-secondary"><div class="text-3xl mb-2">🤖</div><p>你好呀～我是你们的AI小助手，有什么可以帮你的吗？</p></div>':chat.map(m=>{const isU=m.role==='user';return'<div class="flex '+(isU?'justify-end':'justify-start')+'"><div class="max-w-[80%] px-3 py-2 rounded-2xl text-sm '+(isU?'bg-gradient-to-r from-pink to-blue text-white rounded-br-md':'bg-white rounded-bl-md shadow-sm')+'">'+m.content+'</div></div>';}).join('');c.scrollTop=c.scrollHeight;}
+function refreshAiChat(){renderAiMsgs();document.getElementById('aiInput').focus();}
+function genAiReply(msg){const l=msg.toLowerCase();if(l.includes('有空')||l.includes('空闲')||l.includes('没课')){const sch=migratePaired(loadData(KEYS.schedule,null),[],[]),week=loadData(KEYS.currentWeek,1);const days=['周日','周一','周二','周三','周四','周五','周六'];const slots=[{l:'1-2节(8:00-9:40)',s:'08:00',e:'09:40'},{l:'3-4节(10:00-11:40)',s:'10:00',e:'11:40'},{l:'5-6节(14:00-15:40)',s:'14:00',e:'15:40'},{l:'7-8节(16:00-17:40)',s:'16:00',e:'17:40'},{l:'9-10节(19:00-20:40)',s:'19:00',e:'20:40'}];function hc(co,d,s,e){return co.some(c=>{if(c.day!==d||c.startTime>=e||c.endTime<=s)return false;if(c.weeks&&!parseWeekStr(c.weeks).includes(week))return false;if(c.weekType==='odd'&&week%2===0)return false;if(c.weekType==='even'&&week%2===1)return false;return true;});}const today=new Date().getDay(),tf=[];const mc=myVal(sch,[]),tc=taVal(sch,[]);slots.forEach(sl=>{if(!hc(mc,today,sl.s,sl.e)&&!hc(tc,today,sl.s,sl.e))tf.push(sl.l);});if(tf.length>0)return'宝贝～今天'+days[today]+'你们有 '+tf.length+' 个共同空闲时段哦 💕\n'+tf.join('、')+'\n可以一起吃饭、散步或者去图书馆呀～';return'唔...今天'+days[today]+'你们好像都有课呢 😢\n不过没关系！课间也可以发消息互相加油哦 💪';}if(l.includes('约饭')||l.includes('吃饭')||l.includes('餐厅')){const h=loadData(KEYS.lunchHistory,[]);if(h.length===0)return'最近还没有约饭记录呢～快去吃好吃的吧 🍱';return'最近的约饭记录来啦 📋\n'+h.slice(0,5).map(x=>'· '+x.date+' - '+x.restaurant+' ('+x.mode+')').join('\n');}if(l.includes('快递')||l.includes('取件')){const pkgs=loadData(KEYS.packages,{pending:[],picked:[]});if(pkgs.pending.length===0)return'太棒了！没有待取的快递 ✅';return'宝贝，还有 '+pkgs.pending.length+' 个快递没取哦 📦\n'+pkgs.pending.map(p=>{const ol=p.owner===MY_ID?'我':taName();return'· '+p.company+' - 取件码：'+p.code+' ('+p.location+') ['+ol+'的]';}).join('\n');}if(l.includes('纪念日')||l.includes('生日')||l.includes('倒计时')){const items=loadData(KEYS.anniversaries,[]);if(items.length===0)return'还没有添加纪念日或生日哦～快去添加吧 💝';const today=new Date();today.setHours(0,0,0,0);const wd=items.map(item=>{const t=new Date(item.date);let n=new Date(today.getFullYear(),t.getMonth(),t.getDate());if(n<today&&item.repeatYearly)n.setFullYear(n.getFullYear()+1);if(n<today&&!item.repeatYearly)return null;return{item,days:Math.ceil((n-today)/(1000*60*60*24))};}).filter(x=>x).sort((a,b)=>a.days-b.days);if(wd.length===0)return'最近的纪念日/生日都已经过了呢～';return'最近的纪念日/生日倒计时 💝\n'+wd.slice(0,5).map(({item,days})=>'· '+item.name+' - '+(days===0?'🎉 就是今天！':'还有 '+days+' 天')+' ('+item.date+')').join('\n');}if(l.includes('经期')||l.includes('月经')||l.includes('大姨妈')){const period=loadData(KEYS.period,{lastStart:'',cycleDays:28,durationDays:5});if(!period.lastStart)return'还没有设置经期信息哦～去「经期预警」里设置一下吧 🌸';const ls=new Date(period.lastStart),ns=new Date(ls);ns.setDate(ns.getDate()+period.cycleDays);const today=new Date();today.setHours(0,0,0,0);let dd=Math.ceil((ns-today)/(1000*60*60*24));if(dd<0){const cyc=Math.ceil(Math.abs(dd)/period.cycleDays);ns.setDate(ns.getDate()+cyc*period.cycleDays);dd=Math.ceil((ns-today)/(1000*60*60*24));}if(dd===0)return'今天是经期第一天呢，要好好休息呀 😘 多喝热水，不要吃冰的哦～';if(dd<=3)return'经期快到了哦，还有 '+dd+' 天 🌸 记得提前准备好卫生用品，多喝热水 ❤️';return'距离下次经期还有 '+dd+' 天 🌸 一切正常，继续保持好心情哦～';}if(l.includes('推荐')||l.includes('吃什么')||l.includes('今天中午')){const rs=getRestaurants();return'今天要不要试试去吃「'+rs[Math.floor(Math.random()*rs.length)]+'」呀？😋\n随机推荐，仅供参考哦～';}const dr=['嘻嘻，有什么可以帮你的呀？💕','宝贝～我在呢！试试问我「今天什么时候有空？」😊','你好呀亲爱的！需要查什么信息吗？📋'];return dr[Math.floor(Math.random()*dr.length)];}
 
 // ================================================================
-//  深色模式 & 欢迎语
+//  深色模式
 // ================================================================
-function toggleDarkMode() { const isDark = !document.body.classList.contains('dark'); document.body.classList.toggle('dark', isDark); saveData(KEYS.darkMode, isDark); document.body.style.backgroundColor = isDark ? '#2D2A26' : '#FFFAF5'; document.body.style.color = isDark ? '#F5F0EB' : '#374151'; document.getElementById('darkModeToggle').innerHTML = isDark ? '<i class="fa-solid fa-sun text-xs"></i>' : '<i class="fa-solid fa-moon text-xs"></i>'; }
-function initDarkMode() { const isDark = loadData(KEYS.darkMode, false); if (isDark) { document.body.classList.add('dark'); document.body.style.backgroundColor = '#2D2A26'; document.body.style.color = '#F5F0EB'; document.getElementById('darkModeToggle').innerHTML = '<i class="fa-solid fa-sun text-xs"></i>'; } }
-function updateWelcome() { const h = new Date().getHours(); let g = h < 6 ? '夜深了 🌙' : h < 9 ? '早上好 ☀️' : h < 12 ? '上午好 🌤️' : h < 14 ? '中午好 ☀️' : h < 18 ? '下午好 🌈' : h < 22 ? '晚上好 🌙' : '夜深了 🌙'; document.getElementById('welcomeMessage').textContent = g + '，欢迎回到我们的小窝 💕'; document.getElementById('dailyTip').textContent = '💡 ' + DAILY_TIPS[Math.floor(Math.random() * DAILY_TIPS.length)]; document.getElementById('footerQuote').textContent = LOVE_QUOTES[Math.floor(Math.random() * LOVE_QUOTES.length)]; }
+function toggleDarkMode(){const isDark=!document.body.classList.contains('dark');document.body.classList.toggle('dark',isDark);saveData(KEYS.darkMode,isDark);document.body.style.backgroundColor=isDark?'#2D2A26':'#FFFAF5';document.body.style.color=isDark?'#F5F0EB':'#374151';document.getElementById('darkModeToggle').innerHTML=isDark?'<i class="fa-solid fa-sun text-xs"></i>':'<i class="fa-solid fa-moon text-xs"></i>';}
+function initDarkMode(){const isDark=loadData(KEYS.darkMode,false);if(isDark){document.body.classList.add('dark');document.body.style.backgroundColor='#2D2A26';document.body.style.color='#F5F0EB';document.getElementById('darkModeToggle').innerHTML='<i class="fa-solid fa-sun text-xs"></i>';}}
+function updateWelcome(){const h=new Date().getHours();let g=h<6?'夜深了 🌙':h<9?'早上好 ☀️':h<12?'上午好 🌤️':h<14?'中午好 ☀️':h<18?'下午好 🌈':h<22?'晚上好 🌙':'夜深了 🌙';document.getElementById('welcomeMessage').textContent=g+'，欢迎回到我们的小窝 💕';document.getElementById('dailyTip').textContent='💡 '+DAILY_TIPS[Math.floor(Math.random()*DAILY_TIPS.length)];document.getElementById('footerQuote').textContent=LOVE_QUOTES[Math.floor(Math.random()*LOVE_QUOTES.length)];if(MY_ID)document.getElementById('idDisplay').textContent='当前身份: '+myName();}
 
 // ================================================================
-//  初始化（Firebase先启动，compat版本无延迟）
+//  初始化
 // ================================================================
-async function init() {
+function initAfterIdentity() {
   document.getElementById('loadingStatus').textContent = '正在初始化...';
-
-  // 1. Firebase初始化（compat SDK同步可用）
   fbInit();
 
-  // 2. 从云端拉取
-  if (USE_FIREBASE && fbReady) {
-    await new Promise(resolve => pullCloud(resolve));
-  }
+  // 迁移旧数据
+  migrateOldData();
 
-  // 3. 恢复本地状态
-  curSchPerson = loadData(KEYS.schedulePerson, 'mine');
+  updateWelcome(); initDarkMode(); requestNotif(); initBattery();
+
+  curSchPerson = loadData(KEYS.schedulePerson, 'me');
   curSchWeek = loadData(KEYS.currentWeek, 1);
   curAnniTab = loadData(KEYS.anniversaryTab, 'anniversary');
 
-  // 4. UI
-  updateWelcome(); initDarkMode(); requestNotif(); await initBattery();
   switchSchedulePerson(curSchPerson); switchScheduleMode('manual');
 
-  // 5. 每日清理
-  const sd = loadData(KEYS.studyRoom, { date: '', myRoom: '', taRoom: '' });
-  if (sd.date !== getTodayStr()) saveData(KEYS.studyRoom, { date: getTodayStr(), myRoom: '', taRoom: '' });
-
-  // 6. 提醒
-  const todayDate = new Date(); todayDate.setHours(0, 0, 0, 0);
-  loadData(KEYS.anniversaries, []).forEach(item => {
-    const t = new Date(item.date); let n = new Date(todayDate.getFullYear(), t.getMonth(), t.getDate());
-    if (n < todayDate && item.repeatYearly) n.setFullYear(n.getFullYear() + 1);
-    if (n < todayDate && !item.repeatYearly) return;
-    const days = Math.ceil((n - todayDate) / (1000 * 60 * 60 * 24));
-    if (days === 0) sendNotif('纪念日提醒 💝', '今天是' + item.name + '！');
-    else if (days === 3) sendNotif('纪念日提醒 💝', '还有3天就是' + item.name + '了');
-  });
-  const period = loadData(KEYS.period, { lastStart: '', cycleDays: 28, durationDays: 5 });
-  if (period.lastStart) {
-    const ls = new Date(period.lastStart), ns = new Date(ls); ns.setDate(ns.getDate() + period.cycleDays);
-    let dd = Math.ceil((ns - todayDate) / (1000 * 60 * 60 * 24));
-    if (dd < 0) { const cyc = Math.ceil(Math.abs(dd) / period.cycleDays); ns.setDate(ns.getDate() + cyc * period.cycleDays); dd = Math.ceil((ns - todayDate) / (1000 * 60 * 60 * 24)); }
-    if (dd <= 3 && dd >= 0) { if (dd === 0) sendNotif('经期提醒 🌸', '今天是经期第一天，要好好休息呀 😘'); else sendNotif('经期提醒 🌸', '宝贝，你的经期快到了，记得多喝热水，不要吃冰的哦 ❤️'); }
+  // 云端同步
+  if (USE_FIREBASE && fbReady) {
+    pullCloud(() => {});
   }
 
-  // 7. 显示
-  setTimeout(() => { document.getElementById('loadingScreen').style.opacity = '0'; document.getElementById('loadingScreen').style.transition = 'opacity 0.5s'; document.getElementById('mainApp').classList.remove('hidden'); document.getElementById('mainApp').classList.add('fade-in'); setTimeout(() => document.getElementById('loadingScreen').classList.add('hidden'), 500); }, 600);
+  // 每日清理
+  const sd = loadData(KEYS.studyRoom, {date:'',personA:'',personB:''});
+  if (sd.date !== getTodayStr()) { sd.date = getTodayStr(); sd[MY_ID] = ''; sd[taId()] = ''; saveData(KEYS.studyRoom, sd); }
+
+  // 提醒
+  const todayDate = new Date(); todayDate.setHours(0,0,0,0);
+  loadData(KEYS.anniversaries,[]).forEach(item=>{const t=new Date(item.date);let n=new Date(todayDate.getFullYear(),t.getMonth(),t.getDate());if(n<todayDate&&item.repeatYearly)n.setFullYear(n.getFullYear()+1);if(n<todayDate&&!item.repeatYearly)return;const days=Math.ceil((n-todayDate)/(1000*60*60*24));if(days===0)sendNotif('纪念日提醒 💝','今天是'+item.name+'！');else if(days===3)sendNotif('纪念日提醒 💝','还有3天就是'+item.name+'了');});
+  const period=loadData(KEYS.period,{lastStart:'',cycleDays:28,durationDays:5});if(period.lastStart){const ls=new Date(period.lastStart),ns=new Date(ls);ns.setDate(ns.getDate()+period.cycleDays);let dd=Math.ceil((ns-todayDate)/(1000*60*60*24));if(dd<0){const cyc=Math.ceil(Math.abs(dd)/period.cycleDays);ns.setDate(ns.getDate()+cyc*period.cycleDays);dd=Math.ceil((ns-todayDate)/(1000*60*60*24));}if(dd<=3&&dd>=0){if(dd===0)sendNotif('经期提醒 🌸','今天是经期第一天，要好好休息呀 😘');else sendNotif('经期提醒 🌸','记得多喝热水，不要吃冰的哦 ❤️');}}
+
+  setTimeout(()=>{document.getElementById('loadingScreen').style.opacity='0';document.getElementById('loadingScreen').style.transition='opacity 0.5s';document.getElementById('mainApp').classList.remove('hidden');document.getElementById('mainApp').classList.add('fade-in');setTimeout(()=>document.getElementById('loadingScreen').classList.add('hidden'),500);},600);
+}
+
+async function init() {
+  // 检查是否选择过身份
+  MY_ID = localStorage.getItem('coupleIdentity');
+  if (!MY_ID) {
+    // 显示身份选择
+    document.getElementById('loadingScreen').style.display = 'none';
+    document.getElementById('identityModal').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+  } else {
+    initAfterIdentity();
+  }
 }
 
 document.addEventListener('DOMContentLoaded', init);
 document.getElementById('darkModeToggle').addEventListener('click', toggleDarkMode);
-document.addEventListener('keydown', e => { if (e.key === 'Escape') { document.querySelectorAll('.modal-overlay:not(.hidden)').forEach(m => m.classList.add('hidden')); document.body.style.overflow = ''; } });
-
-let tsY = 0;
-document.addEventListener('touchstart', e => { tsY = e.touches[0].clientY; });
-document.addEventListener('touchmove', e => { if (window.scrollY === 0 && e.touches[0].clientY - tsY > 80) { updateWelcome(); refreshBattery(); showToast('页面已刷新 ✨'); if (fbReady) pushAllToCloud(); } });
+document.addEventListener('keydown', e=>{if(e.key==='Escape'){document.querySelectorAll('.modal-overlay:not(.hidden)').forEach(m=>m.classList.add('hidden'));document.body.style.overflow='';}});
+let tsY=0;document.addEventListener('touchstart',e=>{tsY=e.touches[0].clientY;});document.addEventListener('touchmove',e=>{if(window.scrollY===0&&e.touches[0].clientY-tsY>80){updateWelcome();refreshBattery();showToast('页面已刷新 ✨');if(fbReady)pushAllToCloud();}});
 </script>
 </body>
 </html>
