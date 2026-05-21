@@ -159,6 +159,7 @@
       <p class="text-xs text-text-secondary">配对ID</p>
       <p class="text-sm font-mono text-xs" id="settingsPairId"></p>
     </div>
+    <button onclick="unpair()" class="w-full py-3 rounded-xl bg-yellow-50 text-yellow-600 font-medium text-sm active:scale-95" id="btnUnpair"><i class="fa-solid fa-link-slash"></i> 解除配对</button>
     <button onclick="logoutUser()" class="w-full py-3 rounded-xl bg-danger/10 text-danger font-medium text-sm active:scale-95"><i class="fa-solid fa-right-from-bracket"></i> 退出登录</button>
   </div>
 </div></div>
@@ -529,23 +530,44 @@ async function resetPassword() {
 }
 
 async function logoutUser() {
-  // 关闭所有弹窗
+  // 先清理状态，再登出（避免 onAuthStateChanged 竞态）
   document.querySelectorAll('.modal-overlay').forEach(m => m.classList.add('hidden'));
   document.body.style.overflow = '';
   if (pairUnsub) { pairUnsub(); pairUnsub = null; }
-  try {
-    await auth.signOut();
-    // 清理本地缓存
-    localStorage.removeItem('demo_userProfile');
-    localStorage.removeItem('demo_pairData');
-  } catch(e) { console.warn('登出异常:', e); }
   currentUser = null; userProfile = null; pairId = null; pairData = null; myIdentity = null; demoMode = false;
+  localStorage.removeItem('demo_userProfile');
+  localStorage.removeItem('demo_pairData');
   document.getElementById('demoBanner').classList.add('hidden');
   document.getElementById('mainApp').classList.add('hidden');
   document.getElementById('pairingScreen').classList.add('hidden');
   document.getElementById('syncIndicator').className = 'sync-dot disabled';
   showAuthScreen();
+  try { await auth.signOut(); } catch(e) { console.warn('登出异常:', e); }
   showToast('已退出登录 👋');
+}
+
+async function unpair() {
+  if (!pairId || demoMode) { showToast('当前未配对'); return; }
+  if (!confirm('确定要解除配对吗？\n\n解除后你和TA都需要重新配对才能继续使用共享功能。\n此操作不可恢复！')) return;
+  try {
+    const partnerUid = pairData[myIdentity === 'personA' ? 'memberB' : 'memberA'];
+    // 清除双方 pairId 和 identity
+    await db.ref('users/' + currentUser.uid).update({ pairId: null, identity: null });
+    if (partnerUid) {
+      await db.ref('users/' + partnerUid).update({ pairId: null, identity: null });
+    }
+    // 删除 pair 数据
+    await db.ref('pairs/' + pairId).remove();
+    // 清理本地状态
+    if (pairUnsub) { pairUnsub(); pairUnsub = null; }
+    userProfile.pairId = null; userProfile.identity = null;
+    pairId = null; pairData = null; myIdentity = null;
+    await setUserData({ pairId: null, identity: null });
+    document.getElementById('mainApp').classList.add('hidden');
+    closeModal('settingsModal');
+    showPairingScreen();
+    showToast('已解除配对，可以重新配对了 🔗');
+  } catch(e) { showToast('解除配对失败：' + e.message); }
 }
 
 // ================================================================
@@ -837,12 +859,14 @@ function openSettings() {
     document.getElementById('settingsIdentity').textContent = '试用中';
     document.getElementById('settingsPartner').textContent = '虚拟TA（试用）';
     document.getElementById('settingsPairId').textContent = '注册后可查看';
+    document.getElementById('btnUnpair').classList.add('hidden');
   } else {
     document.getElementById('settingsEmail').textContent = currentUser.email;
     document.getElementById('settingsName').value = userProfile.displayName || '';
     document.getElementById('settingsIdentity').textContent = myIdentity ? myName() : '未设置';
     document.getElementById('settingsPartner').textContent = pairId ? partnerName() : '未配对';
     document.getElementById('settingsPairId').textContent = pairId ? (pairId + '\n我的UID: ' + currentUser.uid) : '未配对';
+    document.getElementById('btnUnpair').classList.toggle('hidden', !pairId);
   }
   openModal('settingsModal');
 }
