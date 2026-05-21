@@ -66,6 +66,9 @@
       <button onclick="registerUser()" id="btnRegister" class="w-full py-3 rounded-xl bg-gradient-to-r from-pink to-blue text-white font-medium text-sm active:scale-95 mb-3">注 册</button>
     </div>
     <p class="text-center text-[10px] text-text-secondary/60 mt-4">注册即表示同意我们存储你的账号信息</p>
+    <div class="mt-4 pt-4 border-t border-gray-200/60 text-center">
+      <button onclick="startDemo()" class="text-sm text-text-secondary hover:text-pink-dark transition-colors underline underline-offset-2">👀 单人试用 · 不注册先看看</button>
+    </div>
   </div>
 </div>
 
@@ -113,6 +116,11 @@
     <button onclick="openSettings()" class="w-8 h-8 rounded-full bg-warm-gray flex items-center justify-center text-text-secondary hover:bg-pink-light transition-colors"><i class="fa-solid fa-gear text-xs"></i></button>
   </div>
 </header>
+<!-- 试用模式横幅 -->
+<div id="demoBanner" class="hidden mx-5 mt-3 p-3 rounded-xl bg-gradient-to-r from-pink-light to-blue-light text-center">
+  <p class="text-sm font-medium text-gray-700">👀 你正在试用模式中，数据仅存在本设备</p>
+  <button onclick="exitDemo()" class="mt-2 px-4 py-1.5 rounded-xl bg-gradient-to-r from-pink to-blue text-white text-xs font-medium active:scale-95">立即注册/登录，解锁全部功能 ✨</button>
+</div>
 <section class="px-5 pt-6 pb-2"><div id="welcomeMessage" class="text-lg font-medium text-gray-800"></div><p id="dailyTip" class="text-sm text-text-secondary mt-1"></p></section>
 <section class="px-5 pt-4 grid grid-cols-2 gap-3">
   <div onclick="openModal('scheduleModal')" class="bg-white rounded-card p-4 shadow-sm cursor-pointer hover:shadow-md transition-all active:scale-95 border-l-4 border-blue"><div class="text-2xl mb-2">📚</div><h3 class="font-medium text-gray-800">课程表</h3><p class="text-xs text-text-secondary mt-1">导入课表·空闲提醒</p></div>
@@ -253,6 +261,7 @@ let pairUnsub = null;         // pair 数据监听取消函数
 let connectingRef = null;     // .info/connected 引用
 let myIdentity = null;        // 'personA' | 'personB'
 let joinSelectedIdentity = null; // 加入配对时选择的身份
+let demoMode = false;         // 单人试用模式（纯localStorage，无需注册）
 
 // ================================================================
 // 身份辅助
@@ -297,6 +306,44 @@ function requestNotif() { if('Notification' in window && Notification.permission
 function sendNotif(title,body) { if('Notification' in window && Notification.permission==='granted') new Notification(title,{body,icon:'💕'}); }
 function showPairError(msg) { const e=document.getElementById('pairError'); e.textContent=msg; e.classList.remove('hidden'); setTimeout(()=>e.classList.add('hidden'),4000); }
 function showAuthError(msg) { const e=document.getElementById('authError'); e.textContent=msg; e.classList.remove('hidden'); setTimeout(()=>e.classList.add('hidden'),5000); }
+
+// ================================================================
+// 单人试用模式（纯localStorage，无需注册）
+// ================================================================
+function demoStore(key, val) {
+  if (val === undefined) { try { return JSON.parse(localStorage.getItem('demo_'+key)); } catch(e) { return null; } }
+  localStorage.setItem('demo_'+key, JSON.stringify(val));
+}
+
+function startDemo() {
+  demoMode = true;
+  // 初始化演示数据
+  userProfile = demoStore('userProfile') || { email: 'demo@guest', displayName: '访客', identity: 'personA', pairId: null, createdAt: Date.now(), battery: { level: 85, source: null, lastUpdated: Date.now() }, schedule: [], packages: { pending: [], picked: [] } };
+  pairId = 'demo_pair';
+  myIdentity = 'personA';
+  pairData = demoStore('pairData') || { memberA: 'demo_self', memberB: 'demo_ta', createdAt: Date.now(), restaurants: [...DEFAULT_RESTAURANTS], lunchHistory: [], lunchPick: null, studyRoom: { date: getTodayStr(), personA: '', personB: '' }, period: { lastStart: '', cycleDays: 28, durationDays: 5 }, periodHistory: [], anniversaries: [], aiChat: [], darkMode: false, _memberNames: { demo_self: '我（试用）', demo_ta: 'TA（虚拟）' } };
+  demoStore('userProfile', userProfile);
+  demoStore('pairData', pairData);
+  document.getElementById('authScreen').classList.add('hidden');
+  showMainApp();
+  showToast('👀 进入试用模式，数据仅保存在本设备');
+}
+
+function exitDemo() {
+  if (confirm('退出试用将清除试用数据。\n\n是否前往注册/登录？')) {
+    demoMode = false;
+    currentUser = null; userProfile = null; pairId = null; pairData = null; myIdentity = null;
+    if (pairUnsub) { pairUnsub(); pairUnsub = null; }
+    document.getElementById('demoBanner').classList.add('hidden');
+    document.getElementById('mainApp').classList.add('hidden');
+    showAuthScreen();
+  }
+}
+
+function promptRegister(feature) {
+  showToast('🔒 ' + (feature||'此功能') + '需要注册配对后才能使用', 2500);
+  setTimeout(() => { if (confirm('此功能需要注册并配对后才能使用。\n\n是否前往注册？')) exitDemo(); }, 500);
+}
 
 // ================================================================
 // Firebase 初始化
@@ -612,13 +659,17 @@ async function cancelPair() {
 // ================================================================
 // 数据层（Firebase 直读直写）
 // ================================================================
-function getUserRef() { return db.ref('users/' + currentUser.uid); }
-function getPairRef() { return db.ref('pairs/' + pairId); }
+function getUserRef() { return demoMode ? null : db.ref('users/' + currentUser.uid); }
+function getPairRef() { return demoMode ? null : db.ref('pairs/' + pairId); }
 
 // 写用户个人数据
-function setUserData(data) { return getUserRef().update(data); }
+async function setUserData(data) {
+  if (demoMode) { Object.assign(userProfile, data); demoStore('userProfile', userProfile); return; }
+  return getUserRef().update(data);
+}
 // 写共享数据并通知对方
-function setPairData(data) {
+async function setPairData(data) {
+  if (demoMode) { data._lastSync = Date.now(); Object.assign(pairData, data); demoStore('pairData', pairData); return; }
   data._lastSync = Date.now();
   return getPairRef().update(data);
 }
@@ -646,6 +697,8 @@ function showMainApp() {
   document.getElementById('mainApp').classList.add('fade-in');
   document.getElementById('pairingScreen').classList.add('hidden');
   document.getElementById('authScreen').classList.add('hidden');
+  if (demoMode) { document.getElementById('demoBanner').classList.remove('hidden'); document.getElementById('partnerNameBadge').classList.add('hidden'); }
+  else { document.getElementById('demoBanner').classList.add('hidden'); }
   initMainApp();
 }
 
@@ -657,12 +710,12 @@ function initMainApp() {
   initDarkMode();
   requestNotif();
   initBattery();
-  updateSyncUI('online');
-  updatePartnerBadge();
+  if (demoMode) { updateSyncUI('disabled'); }
+  else { updateSyncUI('online'); updatePartnerBadge(); }
 
   // 每日清理自习室
   const today = getTodayStr();
-  if (pairData.studyRoom && pairData.studyRoom.date !== today) {
+  if (!demoMode && pairData.studyRoom && pairData.studyRoom.date !== today) {
     pairData.studyRoom = { date: today, personA: '', personB: '' };
     setPairData({ studyRoom: pairData.studyRoom });
   }
@@ -743,11 +796,19 @@ function checkReminders() {
 // 设置
 // ================================================================
 function openSettings() {
-  document.getElementById('settingsEmail').textContent = currentUser.email;
-  document.getElementById('settingsName').value = userProfile.displayName || '';
-  document.getElementById('settingsIdentity').textContent = myIdentity ? myName() : '未设置';
-  document.getElementById('settingsPartner').textContent = pairId ? partnerName() : '未配对';
-  document.getElementById('settingsPairId').textContent = pairId ? (pairId + '\n我的UID: ' + currentUser.uid) : '未配对';
+  if (demoMode) {
+    document.getElementById('settingsEmail').textContent = '👀 试用模式（未注册）';
+    document.getElementById('settingsName').value = userProfile.displayName || '访客';
+    document.getElementById('settingsIdentity').textContent = '试用中';
+    document.getElementById('settingsPartner').textContent = '虚拟TA（试用）';
+    document.getElementById('settingsPairId').textContent = '注册后可查看';
+  } else {
+    document.getElementById('settingsEmail').textContent = currentUser.email;
+    document.getElementById('settingsName').value = userProfile.displayName || '';
+    document.getElementById('settingsIdentity').textContent = myIdentity ? myName() : '未设置';
+    document.getElementById('settingsPartner').textContent = pairId ? partnerName() : '未配对';
+    document.getElementById('settingsPairId').textContent = pairId ? (pairId + '\n我的UID: ' + currentUser.uid) : '未配对';
+  }
   openModal('settingsModal');
 }
 
@@ -756,11 +817,12 @@ async function updateProfileName() {
   if (!name) { showToast('请输入昵称'); return; }
   userProfile.displayName = name;
   await setUserData({ displayName: name });
-  if (pairData && pairData._memberNames) {
+  if (!demoMode && pairData && pairData._memberNames) {
     pairData._memberNames[currentUser.uid] = name;
     await setPairData({ _memberNames: pairData._memberNames });
   }
-  updateWelcome(); updatePartnerBadge();
+  if (demoMode) { pairData._memberNames.demo_self = name; demoStore('pairData', pairData); }
+  updateWelcome(); if (!demoMode) updatePartnerBadge();
   showToast('昵称已更新 ✅');
 }
 
@@ -809,7 +871,7 @@ function refreshBattery() {
   const mySrc = userProfile.battery ? userProfile.battery.source : null;
   // 读取伴侣电量
   let taB = 80, taSrc = null;
-  if (pairData && pairData._memberBattery) {
+  if (!demoMode && pairData && pairData._memberBattery) {
     const taUid = pairData[myIdentity === 'personA' ? 'memberB' : 'memberA'];
     if (taUid && pairData._memberBattery[taUid] !== undefined) {
       taB = pairData._memberBattery[taUid].level;
@@ -819,10 +881,15 @@ function refreshBattery() {
   function ic(p) { return p>=50?'<i class="fa-solid fa-battery-full text-green-500"></i>':p>=20?'<i class="fa-solid fa-battery-half text-yellow-500"></i>':'<i class="fa-solid fa-battery-quarter text-danger"></i>'; }
   function pc(p) { return p>=50?'text-green-500':p>=20?'text-yellow-500':'text-danger'; }
   function srcTag(s) { if (s==='manual') return '<span class="text-[10px] text-text-secondary">✏️</span>'; if (s==='shortcuts') return '<span class="text-[10px] text-blue-400">🔗</span>'; if (s==='api') return '<span class="text-[10px] text-green-400">⚡</span>'; return ''; }
-  document.getElementById('batteryDisplay').innerHTML =
-    '<div onclick="openBattEdit(\'me\')" class="flex items-center gap-1 cursor-pointer active:scale-95 px-1.5 py-0.5 rounded-lg hover:bg-warm-gray">'+ic(myB)+' <span class="text-xs '+pc(myB)+' font-medium">'+myB+'%</span>'+srcTag(mySrc)+'</div>'+
-    '<span class="text-text-secondary text-xs">|</span>'+
-    '<div onclick="openBattEdit(\'ta\')" class="flex items-center gap-1 cursor-pointer active:scale-95 px-1.5 py-0.5 rounded-lg hover:bg-warm-gray">'+ic(taB)+' <span class="text-xs '+pc(taB)+' font-medium">'+taB+'%</span>'+srcTag(taSrc)+'</div>';
+  if (demoMode) {
+    document.getElementById('batteryDisplay').innerHTML =
+      '<div onclick="openBattEdit(\'me\')" class="flex items-center gap-1 cursor-pointer active:scale-95 px-1.5 py-0.5 rounded-lg hover:bg-warm-gray">'+ic(myB)+' <span class="text-xs '+pc(myB)+' font-medium">'+myB+'%</span>'+srcTag(mySrc)+'</div>';
+  } else {
+    document.getElementById('batteryDisplay').innerHTML =
+      '<div onclick="openBattEdit(\'me\')" class="flex items-center gap-1 cursor-pointer active:scale-95 px-1.5 py-0.5 rounded-lg hover:bg-warm-gray">'+ic(myB)+' <span class="text-xs '+pc(myB)+' font-medium">'+myB+'%</span>'+srcTag(mySrc)+'</div>'+
+      '<span class="text-text-secondary text-xs">|</span>'+
+      '<div onclick="openBattEdit(\'ta\')" class="flex items-center gap-1 cursor-pointer active:scale-95 px-1.5 py-0.5 rounded-lg hover:bg-warm-gray">'+ic(taB)+' <span class="text-xs '+pc(taB)+' font-medium">'+taB+'%</span>'+srcTag(taSrc)+'</div>';
+  }
 }
 
 function openBattEdit(t) {
@@ -867,15 +934,20 @@ async function revertBatteryAuto() {
 function checkLowBat() {
   const myB = userProfile.battery ? userProfile.battery.level : 80;
   let taB = 80;
-  if (pairData && pairData._memberBattery) {
+  if (!demoMode && pairData && pairData._memberBattery) {
     const taUid = pairData[myIdentity === 'personA' ? 'memberB' : 'memberA'];
     if (taUid && pairData._memberBattery[taUid]) taB = pairData._memberBattery[taUid].level;
   }
   const a = document.getElementById('lowBatteryAlert');
-  if (myB < 20 && taB < 20) { a.innerHTML = '🔋 你们的电量都快没啦，记得充电哦～'; a.classList.remove('hidden'); }
-  else if (myB < 20) { a.innerHTML = '🔋 你的电量快没啦，记得充电哦～'; a.classList.remove('hidden'); }
-  else if (taB < 20) { a.innerHTML = '🔋 ' + taName() + '的电量快没啦，提醒TA充电吧～'; a.classList.remove('hidden'); }
-  else a.classList.add('hidden');
+  if (demoMode) {
+    if (myB < 20) { a.innerHTML = '🔋 你的电量快没啦，记得充电哦～'; a.classList.remove('hidden'); }
+    else a.classList.add('hidden');
+  } else {
+    if (myB < 20 && taB < 20) { a.innerHTML = '🔋 你们的电量都快没啦，记得充电哦～'; a.classList.remove('hidden'); }
+    else if (myB < 20) { a.innerHTML = '🔋 你的电量快没啦，记得充电哦～'; a.classList.remove('hidden'); }
+    else if (taB < 20) { a.innerHTML = '🔋 ' + taName() + '的电量快没啦，提醒TA充电吧～'; a.classList.remove('hidden'); }
+    else a.classList.add('hidden');
+  }
 }
 
 // ================================================================
@@ -975,7 +1047,7 @@ async function refreshScheduleView() {
   const myCourses = userProfile.schedule || [];
   // 读取伴侣课表
   let taCourses = [];
-  if (pairData) {
+  if (!demoMode && pairData) {
     const taUid = pairData[myIdentity === 'personA' ? 'memberB' : 'memberA'];
     if (taUid) {
       const snap = await db.ref('users/' + taUid + '/schedule').once('value');
@@ -1132,18 +1204,29 @@ function refreshLunchModal() { refreshRestList(); refreshPickList(); refreshLunc
 // 晚自习
 // ================================================================
 async function refreshStudyModal() {
-  const today = getTodayStr();
-  document.getElementById('studyDate').value = today;
-  if (!pairData.studyRoom || pairData.studyRoom.date !== today) {
-    pairData.studyRoom = { date: today, personA: '', personB: '' };
-    await setPairData({ studyRoom: pairData.studyRoom });
+  if (demoMode) {
+    document.getElementById('studyDate').value = getTodayStr();
+    document.getElementById('studyMyRoom').value = '';
+    document.getElementById('studyTaRoom').value = '';
+    document.getElementById('studyTaRoom').placeholder = '注册配对后可用';
+    document.getElementById('studyTaRoom').disabled = true;
+  } else {
+    document.getElementById('studyTaRoom').disabled = false;
+    document.getElementById('studyTaRoom').placeholder = 'TA的教室';
+    const today = getTodayStr();
+    document.getElementById('studyDate').value = today;
+    if (!pairData.studyRoom || pairData.studyRoom.date !== today) {
+      pairData.studyRoom = { date: today, personA: '', personB: '' };
+      await setPairData({ studyRoom: pairData.studyRoom });
+    }
+    document.getElementById('studyMyRoom').value = myVal(pairData.studyRoom, '');
+    document.getElementById('studyTaRoom').value = taVal(pairData.studyRoom, '');
+    showStudyResult(pairData.studyRoom);
   }
-  document.getElementById('studyMyRoom').value = myVal(pairData.studyRoom, '');
-  document.getElementById('studyTaRoom').value = taVal(pairData.studyRoom, '');
-  showStudyResult(pairData.studyRoom);
 }
 
 async function submitStudyRoom() {
+  if (demoMode) { promptRegister('晚自习教室共享'); return; }
   const mr = document.getElementById('studyMyRoom').value.trim(), tr = document.getElementById('studyTaRoom').value.trim();
   if (!mr && !tr) { showToast('请至少输入一个教室'); return; }
   const date = document.getElementById('studyDate').value || getTodayStr();
