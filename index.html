@@ -419,6 +419,13 @@ function demoStore(key, val) {
   localStorage.setItem('demo_'+key, JSON.stringify(val));
 }
 
+// 本地缓存：大厂级"本地优先"策略 —— 从 localStorage 瞬加载，Firebase 后台静默同步
+function cacheKey(suffix) { return 'cache_' + (currentUser ? currentUser.uid : 'anon') + '_' + suffix; }
+function cacheStore(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch(e) {} }
+function cacheLoad(key) { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : null; } catch(e) { return null; } }
+function cacheUserProfile() { if (userProfile) cacheStore(cacheKey('profile'), userProfile); }
+function cachePairData() { if (pairData) cacheStore(cacheKey('pair'), pairData); }
+
 function startDemo() {
   demoMode = true;
   // 初始化演示数据
@@ -469,25 +476,34 @@ function initAuthListener() {
   let authTimeout = null;
   auth.onAuthStateChanged(async (user) => {
     clearTimeout(authTimeout);
-    document.getElementById('loadingScreen').style.display = 'flex';
-    document.getElementById('loadingRetry').classList.add('hidden');
-    // 10秒超时保护
-    authTimeout = setTimeout(() => {
-      if (document.getElementById('loadingScreen').style.display !== 'none') {
-        document.getElementById('loadingRetry').classList.remove('hidden');
-        document.getElementById('loadingStatus').textContent = '加载超时，请检查网络';
-      }
-    }, 10000);
     try {
       if (user) {
         currentUser = user;
-        document.getElementById('loadingStatus').textContent = '正在加载用户数据...';
+        // 检查本地缓存 —— 有缓存则瞬开，无缓存则显示加载屏
+        const hasCachedProfile = !!cacheLoad(cacheKey('profile'));
+        const cachedProfile = cacheLoad(cacheKey('profile'));
+        const hasCachedPair = cachedProfile && cachedProfile.pairId && !!cacheLoad(cacheKey('pair'));
+
+        if (!hasCachedProfile) {
+          document.getElementById('loadingScreen').style.display = 'flex';
+          document.getElementById('loadingRetry').classList.add('hidden');
+          document.getElementById('loadingStatus').textContent = '正在加载用户数据...';
+          authTimeout = setTimeout(() => {
+            if (document.getElementById('loadingScreen').style.display !== 'none') {
+              document.getElementById('loadingRetry').classList.remove('hidden');
+              document.getElementById('loadingStatus').textContent = '加载超时，请检查网络';
+            }
+          }, 6000);
+        }
+
         await loadUserProfile();
         if (pairId) {
           await loadPairData();
           document.getElementById('authScreen').classList.add('hidden');
           document.getElementById('pairingScreen').classList.add('hidden');
           showMainApp();
+          // 有缓存时后台静默同步
+          if (hasCachedProfile) syncUserDataInBackground();
         } else {
           document.getElementById('authScreen').classList.add('hidden');
           document.getElementById('mainApp').classList.add('hidden');
@@ -506,34 +522,73 @@ function initAuthListener() {
       document.getElementById('loadingStatus').textContent = '加载出错：' + e.message;
     }
     clearTimeout(authTimeout);
+    // 有缓存时快速淡出，无缓存时给个短暂过渡
+    const fadeDelay = cacheLoad(cacheKey('profile')) ? 200 : 400;
     setTimeout(() => {
       document.getElementById('loadingScreen').style.opacity = '0';
-      document.getElementById('loadingScreen').style.transition = 'opacity 0.5s';
-      setTimeout(() => document.getElementById('loadingScreen').style.display = 'none', 500);
-    }, 400);
+      document.getElementById('loadingScreen').style.transition = 'opacity 0.3s';
+      setTimeout(() => document.getElementById('loadingScreen').style.display = 'none', 300);
+    }, fadeDelay);
   });
+}
+
+// 后台静默同步：在 UI 展示后用最新 Firebase 数据刷新
+async function syncUserDataInBackground() {
+  try {
+    const snap = await withTimeout(db.ref('users/' + currentUser.uid).once('value'), 6000);
+    const remote = snap.val();
+    if (remote && remote.email) {
+      const oldPairId = userProfile.pairId;
+      const changed = JSON.stringify(remote) !== JSON.stringify(userProfile);
+      if (changed) {
+        userProfile = remote;
+        cacheUserProfile();
+        pairId = userProfile.pairId || null;
+        myIdentity = userProfile.identity || null;
+        // pair 变了则重新加载 pair 数据
+        if (oldPairId !== pairId && pairId) {
+          await loadPairData();
+        }
+        refreshAllUI();
+      }
+    }
+  } catch(e) { /* 静默失败，UI 已展示缓存数据 */ }
 }
 
 async function loadUserProfile() {
   if (!currentUser) return;
-  try {
-    const snap = await withTimeout(withRetry(() => db.ref('users/' + currentUser.uid).once('value')), 15000);
-    userProfile = snap.val() || {};
-  } catch(e) {
-    console.warn('加载用户数据失败，使用默认值:', e.message);
-    userProfile = {};
+  // 1. 优先从本地缓存瞬加载
+  const cached = cacheLoad(cacheKey('profile'));
+  if (cached && cached.email) {
+    userProfile = cached;
+    pairId = userProfile.pairId || null;
+    myIdentity = userProfile.identity || null;
   }
+  // 2. 后台尝试 Firebase 同步（短超时，失败不阻塞）
+  try {
+    const snap = await withTimeout(db.ref('users/' + currentUser.uid).once('value'), 8000);
+    const remote = snap.val();
+    if (remote && remote.email) {
+      userProfile = remote;
+      cacheUserProfile();
+    }
+  } catch(e) {
+    console.warn('Firebase加载用户数据失败，使用缓存:', e.message);
+    // 有缓存就继续用，没有则初始化默认值
+    if (!userProfile || !userProfile.email) userProfile = {};
+  }
+  // 3. 无数据时创建默认 profile（仅首次注册）
   if (!userProfile.email) {
     userProfile = { email: currentUser.email, displayName: currentUser.email.split('@')[0], identity: null, pairId: null, createdAt: Date.now(), battery: { level: 80, source: null, lastUpdated: Date.now() }, schedule: [], packages: { pending: [], picked: [] } };
-    // 重试3次写入profile（注册后Auth已成功但DB可能未同步）
+    cacheUserProfile();
+    // 异步写入 Firebase，不阻塞 UI
     let saved = false;
     for (let i = 0; i < 3 && !saved; i++) {
       try {
-        await withTimeout(db.ref('users/' + currentUser.uid).set(userProfile), 15000);
+        await withTimeout(db.ref('users/' + currentUser.uid).set(userProfile), 8000);
         saved = true;
       } catch(e) {
         if (i < 2) await new Promise(r => setTimeout(r, 1000));
-        else console.warn('创建用户profile失败（已重试）:', e.message);
       }
     }
   }
@@ -545,28 +600,52 @@ async function loadPairData() {
   if (!pairId) return;
   if (pairUnsub) pairUnsub();
   const ref = db.ref('pairs/' + pairId);
-  const snap = await ref.once('value');
-  pairData = snap.val() || {};
+
+  // 1. 优先从本地缓存瞬加载
+  const cached = cacheLoad(cacheKey('pair'));
+  if (cached && cached.createdAt) {
+    pairData = cached;
+  }
+
+  // 2. 后台尝试 Firebase 同步（短超时）
+  try {
+    const snap = await withTimeout(ref.once('value'), 8000);
+    const remote = snap.val();
+    if (remote && remote.createdAt) {
+      pairData = remote;
+      cachePairData();
+    }
+  } catch(e) {
+    console.warn('Firebase加载pair数据失败，使用缓存:', e.message);
+    if (!pairData || !pairData.createdAt) pairData = {};
+  }
+
+  // 3. 无数据时初始化（首次创建配对）
   if (!pairData.createdAt) {
     pairData = { memberA: '', memberB: '', createdAt: Date.now(), restaurants: [...DEFAULT_RESTAURANTS], lunchHistory: [], lunchPick: null, studyRoom: { date: getTodayStr(), personA: '', personB: '' }, period: { lastStart: '', cycleDays: 28, durationDays: 5 }, periodHistory: [], anniversaries: [], aiChat: [], expenses: [], darkMode: false, _memberNames: {} };
-    await ref.set(pairData);
+    cachePairData();
+    try { await withTimeout(ref.set(pairData), 8000); } catch(e) { /* 后台静默重试 */ }
   }
-  // 更新成员昵称
+
+  // 4. 更新成员昵称（后台异步，不阻塞 UI）
   if (!pairData._memberNames) pairData._memberNames = {};
   pairData._memberNames[currentUser.uid] = userProfile.displayName || currentUser.email.split('@')[0];
-  // 获取伴侣昵称
   const partnerUid = pairData[myIdentity === 'personA' ? 'memberB' : 'memberA'];
   if (partnerUid && !pairData._memberNames[partnerUid]) {
-    const psnap = await db.ref('users/' + partnerUid + '/displayName').once('value');
-    pairData._memberNames[partnerUid] = psnap.val() || 'TA';
+    try {
+      const psnap = await withTimeout(db.ref('users/' + partnerUid + '/displayName').once('value'), 5000);
+      pairData._memberNames[partnerUid] = psnap.val() || 'TA';
+    } catch(e) { pairData._memberNames[partnerUid] = 'TA'; }
   }
-  await ref.child('_memberNames').set(pairData._memberNames);
+  cachePairData();
+  try { await withTimeout(ref.child('_memberNames').set(pairData._memberNames), 5000); } catch(e) {}
 
-  // 实时监听
+  // 5. 实时监听（Firebase 推送更新自动覆盖缓存）
   pairUnsub = ref.on('value', snap => {
     const newData = snap.val();
     if (newData && newData._lastSync && newData._lastSync > (pairData._lastSync || 0)) {
       pairData = newData;
+      cachePairData();
       refreshAllUI();
     }
   });
@@ -656,6 +735,8 @@ async function logoutUser() {
   document.querySelectorAll('.modal-overlay').forEach(m => m.classList.add('hidden'));
   document.body.style.overflow = '';
   if (pairUnsub) { pairUnsub(); pairUnsub = null; }
+  // 清除本地缓存
+  if (currentUser) { try { localStorage.removeItem(cacheKey('profile')); localStorage.removeItem(cacheKey('pair')); } catch(e) {} }
   currentUser = null; userProfile = null; pairId = null; pairData = null; myIdentity = null; demoMode = false;
   localStorage.removeItem('demo_userProfile');
   localStorage.removeItem('demo_pairData');
@@ -682,8 +763,10 @@ async function unpair() {
     await db.ref('pairs/' + pairId).remove();
     // 清理本地状态
     if (pairUnsub) { pairUnsub(); pairUnsub = null; }
+    try { localStorage.removeItem(cacheKey('pair')); } catch(e) {}
     userProfile.pairId = null; userProfile.identity = null;
     pairId = null; pairData = null; myIdentity = null;
+    cacheUserProfile();
     await setUserData({ pairId: null, identity: null });
     document.getElementById('mainApp').classList.add('hidden');
     closeModal('settingsModal');
@@ -818,9 +901,11 @@ async function joinPair() {
     // 刷新页面状态
     userProfile.pairId = targetPairId;
     userProfile.identity = myIdent;
+    cacheUserProfile();
     pairId = targetPairId;
     myIdentity = myIdent;
     await loadPairData();
+    cachePairData();
     showMainApp();
   } catch(e) { showPairError('加入失败：' + e.message); document.getElementById('btnJoinPair').disabled = false; document.getElementById('btnJoinPair').textContent = '加入配对'; }
 }
@@ -846,6 +931,8 @@ function getPairRef() { return demoMode ? null : db.ref('pairs/' + pairId); }
 let _setUserDataPending = null, _setUserDataTimer = null;
 async function setUserData(data) {
   if (demoMode) { Object.assign(userProfile, data); demoStore('userProfile', userProfile); return; }
+  // 乐观更新本地缓存（无需等待 Firebase 响应）
+  cacheUserProfile();
   return new Promise((resolve, reject) => {
     _setUserDataPending = Object.assign(_setUserDataPending || {}, data);
     clearTimeout(_setUserDataTimer);
@@ -853,7 +940,8 @@ async function setUserData(data) {
       const batch = _setUserDataPending;
       _setUserDataPending = null;
       try {
-        await withTimeout(withRetry(() => getUserRef().update(batch)), 15000);
+        await withTimeout(withRetry(() => getUserRef().update(batch)), 10000);
+        cacheUserProfile();
         resolve();
       } catch(e) { showToast('保存失败：' + e.message); reject(e); }
     }, 150);
@@ -863,6 +951,8 @@ async function setUserData(data) {
 let _setPairDataPending = null, _setPairDataTimer = null;
 async function setPairData(data) {
   if (demoMode) { data._lastSync = Date.now(); Object.assign(pairData, data); demoStore('pairData', pairData); return; }
+  // 乐观更新本地缓存
+  cachePairData();
   return new Promise((resolve, reject) => {
     _setPairDataPending = Object.assign(_setPairDataPending || {}, data);
     clearTimeout(_setPairDataTimer);
@@ -871,7 +961,8 @@ async function setPairData(data) {
       _setPairDataPending = null;
       batch._lastSync = Date.now();
       try {
-        await withTimeout(withRetry(() => getPairRef().update(batch)), 15000);
+        await withTimeout(withRetry(() => getPairRef().update(batch)), 10000);
+        cachePairData();
         resolve();
       } catch(e) { showToast('同步失败：' + e.message); reject(e); }
     }, 300);
